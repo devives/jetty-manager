@@ -1,16 +1,11 @@
 package com.devives.jetty;
 
-import com.devives.commons.lang.ClassLoaderUtils;
 import com.devives.commons.lang.reflection.ProxyBuilder;
 import com.devives.jetty.adapters.ServerAdapter;
-import com.devives.jetty.adapters.ShutdownMonitorAdapter;
 import com.devives.jetty.injection.LifeCycleListener;
 import com.devives.jetty.interfaces.Server;
-import com.devives.jetty.interfaces.ShutdownMonitor;
 
-import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 

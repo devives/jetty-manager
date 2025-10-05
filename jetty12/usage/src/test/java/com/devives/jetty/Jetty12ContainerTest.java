@@ -12,7 +12,7 @@ import java.util.logging.Logger;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class Jetty12ContainerTest {
 
-    private static final Path rootPath = Paths.get("").resolve("usage").toAbsolutePath().getParent();
+    private static final Path rootPath = Paths.get("").toAbsolutePath();
     private static final Path jettyHomePath = rootPath.resolve("jetty-home-12.1.1");
     private static final Path jettyInjectionBasePath = rootPath.resolve("jetty-container-base");
     private static final Path jettyBasePath = rootPath.resolve("jetty-base");
@@ -44,9 +44,16 @@ public class Jetty12ContainerTest {
         doStartStopAsync(8080, 8443);
     }
 
+    private ContainerBuilder createContainerBuilder() {
+        return new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
+                //.setIncludeJettyDir(jettyInjectionBasePath)
+                .addStartJar(jettyInjectionBasePath.resolve("lib\\container-starter-0.1.0.jar"))
+                .addLibrary(jettyInjectionBasePath.resolve("lib\\container-injection-0.1.0.jar"))
+                .addStartArgument(jettyInjectionBasePath.resolve("etc\\jetty-container-injection.xml").toString());
+    }
+
     private void doStartStop(int httpPort, int httpsPort) throws Exception {
-        Container container = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
-                .setIncludeJettyDir(jettyInjectionBasePath)
+        Container container = createContainerBuilder()
                 .setHttpPort(httpPort)
                 .setHttpsPort(httpsPort)
                 .setJettyBase(jettyBasePath)
@@ -76,8 +83,7 @@ public class Jetty12ContainerTest {
     }
 
     private void doStartStopAsync(int httpPort, int httpsPort) throws Exception {
-        Container container = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
-                .setIncludeJettyDir(jettyInjectionBasePath)
+        Container container = createContainerBuilder()
                 .setHttpPort(httpPort)
                 .setHttpsPort(httpsPort)
                 .setJettyBase(jettyBasePath)
@@ -140,8 +146,7 @@ public class Jetty12ContainerTest {
     @Test
     @Order(Integer.MAX_VALUE)
     public void startStop_OnJvmExit() throws Exception {
-        Container container = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
-                .setIncludeJettyDir(jettyInjectionBasePath)
+        Container container = createContainerBuilder()
                 .setJettyBase(jettyBasePath)
                 .build();
         container.start();

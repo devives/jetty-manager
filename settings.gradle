@@ -1,8 +1,8 @@
 rootProject.name = 'jetty-manager'
 include 'manager'
 include 'manager-test'
+include 'container-starter'
 include 'jetty12:container-injection'
 include 'jetty12:usage'
 include 'jetty9:container-injection'
 include 'jetty9:usage'
-

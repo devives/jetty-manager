@@ -16,11 +16,8 @@ public final class ServerEventListener implements LifeCycle.Listener {
     public ServerEventListener(Server server) throws Exception {
         server_ = server;
         lifeCycleListener_ = Objects.requireNonNull(
-                com.devives.jetty.Container.getLifeCycleListener(),
+                com.devives.jetty.injection.ContainerContext.getLifeCycleListener(),
                 "The 'com.devives.jetty.Container#getLifeCycleListener()` did not return value.");
-//        Class<?> jettyRunnableClass = Class.forName("com.devives.jetty.Container");
-//        lifeCycleListener_ = (LifeCycleListener) Objects.requireNonNull(jettyRunnableClass.getMethod("getLifeCycleListener").invoke(null),
-//                "'com.devives.jetty.Container#getLifeCycleListener()` did not return value.");
     }
 
     @Override

@@ -6,45 +6,49 @@ group = 'com.devives.jetty'
 version = '0.1.0'
 group = 'com.devives'
 base {
-    archivesName = "jetty9-container-injection"
+    archivesName = "container-injection"
 }
 version = '0.1.0'
 
 compileJava.options.encoding = "UTF-8"
 compileTestJava.options.encoding = "UTF-8"
 
-repositories {
-    mavenCentral()
-    mavenLocal()
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-        vendor = JvmVendorSpec.BELLSOFT
-    }
-    withJavadocJar()
-    withSourcesJar()
-}
+//java {
+//    toolchain {
+//        languageVersion = JavaLanguageVersion.of(21)
+//        vendor = JvmVendorSpec.BELLSOFT
+//    }
+//    withJavadocJar()
+//    withSourcesJar()
+//}
 
 ext {
     jettyVersion = "9.4.58.v20250814"
 }
 
 dependencies {
-
     compileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
     implementation(project(":manager"))
-
-//    testImplementation platform('org.junit:junit-bom')
-//    testImplementation 'org.junit.jupiter:junit-jupiter'
-//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
+    implementation(project(":container-starter"))
 }
 
-test {
-    useJUnitPlatform()
+// Путь к каталогу назначения
+def targetDir = file('../usage/jetty-container-base/lib')
+
+// Задача копирования артефакта
+tasks.register('copyJarToJettyLib', Copy) {
+    dependsOn tasks.named('jar')   // выполняем после сборки jar
+    from tasks.named('jar')        // берём результат jar
+    into targetDir                 // каталог назначения
+    rename { String fileName ->
+        fileName // можно переименовать, если нужно
+    }
+}
+
+// Если нужно, чтобы копирование выполнялось автоматически после jar:
+tasks.named('jar') {
+    finalizedBy tasks.named('copyJarToJettyLib')
 }

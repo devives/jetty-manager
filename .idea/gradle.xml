@@ -10,6 +10,7 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/container-starter" />
             <option value="$PROJECT_DIR$/jetty12" />
             <option value="$PROJECT_DIR$/jetty12/container-injection" />
             <option value="$PROJECT_DIR$/jetty12/usage" />

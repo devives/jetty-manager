@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group = 'com.devives'
+group = 'com.devives.jetty'
 base {
     archivesName = "devive-jetty-manager"
 }
@@ -14,9 +14,9 @@ compileTestJava.options.encoding = "UTF-8"
 javadoc.options.encoding = "UTF-8"
 javadoc.failOnError = false
 
-repositories {
-    mavenCentral()
-    mavenLocal()
+ext {
+    //jettyVersion = "9.4.58.v20250814"
+    jettyVersion = "12.1.1"
 }
 
 dependencies {
@@ -24,44 +24,19 @@ dependencies {
     implementation 'com.devives:devive-commons-manager:0.3.2'
 
 // Can be uncommented for debugging.
-
-//    compileOnly 'org.eclipse.jetty:jetty-xml:9.4.53.v20231009'
-//    compileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
-//    compileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
-//    compileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-xml:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
-
-//    compileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
-//    compileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
-//    compileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
-//    testCompileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
-
-    compileOnly 'org.eclipse.jetty:jetty-server:12.1.1'
-    compileOnly 'org.eclipse.jetty:jetty-start:12.1.1'
-    compileOnly 'org.eclipse.jetty:jetty-security:12.1.1'
-    testCompileOnly 'org.eclipse.jetty:jetty-server:12.1.1'
-    testCompileOnly 'org.eclipse.jetty:jetty-start:12.1.1'
-    testCompileOnly 'org.eclipse.jetty:jetty-security:12.1.1'
-
-//    testImplementation platform('org.junit:junit-bom')
-//    testImplementation 'org.junit.jupiter:junit-jupiter'
-//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+//    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
+//    testCompileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
+//    testCompileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
+//    testCompileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-        vendor = JvmVendorSpec.BELLSOFT
-    }
-    withJavadocJar()
-    withSourcesJar()
-}
-
-test {
-    useJUnitPlatform()
-}
+//java {
+//    toolchain {
+//        languageVersion = JavaLanguageVersion.of(21)
+//        vendor = JvmVendorSpec.BELLSOFT
+//    }
+//    withJavadocJar()
+//    withSourcesJar()
+//}

@@ -1,6 +1,8 @@
 package com.devives.jetty;
 
 import com.devives.commons.lang.ClassLoaderUtils;
+import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.lang.reflection.ProxyBuilder;
 import com.devives.jetty.adapters.ServerAdapter;
 import com.devives.jetty.adapters.ShutdownMonitorAdapter;
 import com.devives.jetty.injection.LifeCycleListener;
@@ -41,7 +43,6 @@ public class Container {
      * Что приведёт к ошибке открытия сокета во всех экземпляра кроме первого.
      */
     private static final Object ENV_VARIABLES_LOCK = new Object();
-    private static final ThreadLocal<LifeCycleListener> LISTENER_THREAD_LOCAL = new ThreadLocal<>();
 
     /**
      * Возвращает экземпляр обработчика событий жизненного цикла сервера Jetty для текущего потока.
@@ -52,12 +53,16 @@ public class Container {
      *
      * @return Экземпляр обработчика событий.
      */
-    public static LifeCycleListener getLifeCycleListener() {
-        return LISTENER_THREAD_LOCAL.get();
-    }
-
-    private static void setLifeCycleHandler(LifeCycleListener handler) {
-        LISTENER_THREAD_LOCAL.set(handler);
+    private void setLifeCycleHandler(LifeCycleListener handler) {
+        try {
+            Class<?> classLifeCycleListener = classLoader_.loadClass("com.devives.jetty.injection.LifeCycleListener");
+            Method method = classLoader_.loadClass("com.devives.jetty.injection.ContainerContext")
+                    .getMethod("setLifeCycleHandler", classLifeCycleListener);
+            Object oHandler = ProxyBuilder.forClasses(classLifeCycleListener).setTarget(handler).build();
+            method.invoke(null, oHandler);
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
     }
 
     private final ClassLoader classLoader_;
@@ -94,11 +99,11 @@ public class Container {
             Class<?> classMain = classLoader_.loadClass(Main.CLASS);
             Method mainMethod = classMain.getMethod("main", String[].class);
             synchronized (ENV_VARIABLES_LOCK) {
-                Container.setLifeCycleHandler(serverAdapter.lifeCycleHandler());
+                this.setLifeCycleHandler(serverAdapter.lifeCycleHandler());
                 try (AutoCloseable ignore = registerShutdownMonitorEnvVariables()) {
                     mainMethod.invoke(null, (Object) startArgs_);
                 } finally {
-                    Container.setLifeCycleHandler(null);
+                    this.setLifeCycleHandler(null);
                 }
             }
             ShutdownMonitor shutdownMonitor = ShutdownMonitorAdapter.getShutdownMonitor(serverAdapter);

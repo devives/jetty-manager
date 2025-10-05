@@ -1,5 +1,5 @@
-group = 'com.devives'
-version = '0.2.0'
+group = 'com.devives.jetty'
+version = '0.1.0'
 
 subprojects {
     apply plugin: 'java'
@@ -8,10 +8,20 @@ subprojects {
         mavenCentral()
     }
 
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+            vendor = JvmVendorSpec.BELLSOFT
+        }
+        withJavadocJar()
+        withSourcesJar()
+    }
+
     dependencies {
-        testImplementation platform('org.junit:junit-bom:5.10.0')
-        testImplementation 'org.junit.jupiter:junit-jupiter'
-        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        testImplementation platform('org.junit:junit-bom:5.13.3')
+        testImplementation 'org.junit.jupiter:junit-jupiter-api:5.13.3'
+        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.13.3'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.3'
     }
 
     tasks.withType(Test).configureEach {

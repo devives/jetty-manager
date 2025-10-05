@@ -3,6 +3,7 @@ package com.devives.jetty;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.StringUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -10,6 +11,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ContainerBuilder {
     private final ClassLoader parentClassLoader_;
@@ -22,10 +24,22 @@ public class ContainerBuilder {
     private String stopKey_;
     private Integer stopTimeoutSeconds_;
     private final Map<String, String> argumentMap_ = new HashMap<>();
+    private final Set<URL> startJarSet_ = new HashSet<>();
+    private final Set<Path> librarySet_ = new HashSet<>();
 
     public ContainerBuilder(ClassLoader parentClassLoader, Path jettyHome) {
         parentClassLoader_ = Objects.requireNonNull(parentClassLoader);
         jettyHome_ = Objects.requireNonNull(jettyHome);
+    }
+
+    public ContainerBuilder addStartJar(Path jarPath) {
+        startJarSet_.add(ExceptionUtils.passChecked(Objects.requireNonNull(jarPath, "jarPath").toUri()::toURL));
+        return this;
+    }
+
+    public ContainerBuilder addLibrary(Path jarPath) {
+        librarySet_.add(Objects.requireNonNull(jarPath, "jarPath"));
+        return this;
     }
 
     public ContainerBuilder setIncludeJettyDir(Path includeJettyDir) {
@@ -84,7 +98,7 @@ public class ContainerBuilder {
     }
 
     private String[] buildStartArgs() {
-        Map<String, String> startArgMap = new HashMap<>(argumentMap_);
+        Map<String, String> startArgMap = new LinkedHashMap<>(argumentMap_);
         startArgMap.put("jetty.home", jettyHome_.toAbsolutePath().toString());
         if (jettyBase_ != null) {
             startArgMap.put("jetty.base", jettyBase_.isAbsolute()
@@ -99,6 +113,9 @@ public class ContainerBuilder {
         }
         if (includeJettyDir_ != null) {
             startArgMap.put("--include-jetty-dir", includeJettyDir_.toString());
+        }
+        if (!librarySet_.isEmpty()) {
+            startArgMap.put("--lib", librarySet_.stream().map(Path::toAbsolutePath).map(Path::toString).collect(Collectors.joining(File.pathSeparator)));
         }
         return startArgMap
                 .entrySet().stream()
@@ -118,16 +135,19 @@ public class ContainerBuilder {
     }
 
     private URLClassLoader buildJettyClassLoader(Path jettyHome) {
-        if (!Files.exists(jettyHome)) {
-            throw ExceptionUtils.asUnchecked(new IOException(String.format("Directory '%s' is not exits.", jettyHome.toAbsolutePath())));
-        }
-        Path startJarPath = jettyHome.resolve("start.jar");
-        if (!Files.exists(startJarPath)) {
-            throw ExceptionUtils.asUnchecked(new IOException(String.format("File '%s' is not exits.", startJarPath.toAbsolutePath())));
-        }
         try {
-            return new URLClassLoader(new URL[]{startJarPath.toUri().toURL()}, parentClassLoader_);
-        } catch (MalformedURLException e) {
+            if (!Files.exists(jettyHome)) {
+                throw new IOException(String.format("Directory '%s' is not exits.", jettyHome.toAbsolutePath()));
+            }
+            List<URL> urls = new ArrayList<>();
+            Path startJarPath = jettyHome.resolve("start.jar");
+            if (!Files.exists(startJarPath)) {
+                throw new IOException(String.format("File '%s' is not exits.", startJarPath.toAbsolutePath()));
+            }
+            urls.add(startJarPath.toUri().toURL());
+            urls.addAll(startJarSet_);
+            return new URLClassLoader(urls.toArray(new URL[0]), parentClassLoader_);
+        } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
         }
     }

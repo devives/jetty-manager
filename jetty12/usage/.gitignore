@@ -1,4 +1,6 @@
+jetty-container-base/lib
 jetty-home-*/
+
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar

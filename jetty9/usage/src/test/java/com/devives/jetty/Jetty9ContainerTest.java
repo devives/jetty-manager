@@ -12,7 +12,7 @@ import java.util.logging.Logger;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class Jetty9ContainerTest {
 
-    private static final Path rootPath = Paths.get("").resolve("usage").toAbsolutePath().getParent();
+    private static final Path rootPath = Paths.get("").toAbsolutePath();
     private static final Path jettyHomePath = rootPath.resolve("jetty-distribution-9.4.58.v20250814");
     private static final Path jettyInjectionBasePath = rootPath.resolve("jetty-container-base");
     private static final Path jettyBasePath = jettyHomePath.resolve("demo-base");
@@ -43,9 +43,16 @@ public class Jetty9ContainerTest {
         doStartStopAsync(8080, 8443);
     }
 
+    private ContainerBuilder createContainerBuilder() {
+        return new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
+                //.setIncludeJettyDir(jettyInjectionBasePath)
+                .addStartJar(jettyInjectionBasePath.resolve("lib\\container-starter-0.1.0.jar"))
+                .addLibrary(jettyInjectionBasePath.resolve("lib\\container-injection-0.1.0.jar"))
+                .addStartArgument(jettyInjectionBasePath.resolve("etc\\jetty-container-injection.xml").toString());
+    }
+
     private void doStartStop(int httpPort, int httpsPort) throws Exception {
-        Container container = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
-                .setIncludeJettyDir(jettyInjectionBasePath)
+        Container container = createContainerBuilder()
                 .setHttpPort(httpPort)
                 .setHttpsPort(httpsPort)
                 .setJettyBase(jettyBasePath)
@@ -75,9 +82,9 @@ public class Jetty9ContainerTest {
         logger.info("Exit test.");
     }
 
+
     private void doStartStopAsync(int httpPort, int httpsPort) throws Exception {
-        Container container = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
-                .setIncludeJettyDir(jettyInjectionBasePath)
+        Container container = createContainerBuilder()
                 .setHttpPort(httpPort)
                 .setHttpsPort(httpsPort)
                 .setJettyBase(jettyBasePath)
@@ -140,8 +147,7 @@ public class Jetty9ContainerTest {
     @Test
     @Order(Integer.MAX_VALUE)
     public void startStop_OnJvmExit() throws Exception {
-        Container container = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
-                .setIncludeJettyDir(jettyInjectionBasePath)
+        Container container = createContainerBuilder()
                 .setJettyBase(jettyBasePath)
                 // В `demo-base\etc\test-realm.xml` прописан относительный путь `etc/realm.properties`, что приводит к ошибке.
                 .addStartArgument("jetty.demo.realm", jettyBasePath.resolve("etc/realm.properties").toString())
