@@ -1,1 +1,1 @@
-# jetty-wrapper
+# jetty-manager

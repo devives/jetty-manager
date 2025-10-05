@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.devives.jetty'
+version = '0.1.0'
+group = 'com.devives'
+base {
+    archivesName = "jetty12-container-injection"
+}
+version = '0.1.0'
+
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+ext {
+    jettyVersion = "12.1.1"
+}
+
+dependencies {
+    compileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
+    implementation(project(":manager"))
+
+//    testImplementation platform('org.junit:junit-bom')
+//    testImplementation 'org.junit.jupiter:junit-jupiter'
+//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+}
+
+test {
+    useJUnitPlatform()
+}

@@ -1,0 +1,48 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.devives'
+version = '0.1.0'
+
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
+javadoc.options.encoding = "UTF-8"
+javadoc.failOnError = false
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+ext {
+    jettyVersion = "9.4.58.v20250814"
+}
+
+dependencies {
+    // Can be uncommented for debugging.
+//    compileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
+
+    implementation(project(path: ':manager'))
+    testImplementation(project(path: ':manager-test'))
+//    testImplementation platform('org.junit:junit-bom')
+//    testImplementation 'org.junit.jupiter:junit-jupiter'
+//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+test {
+    useJUnitPlatform()
+}

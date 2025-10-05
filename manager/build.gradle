@@ -1,0 +1,67 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.devives'
+base {
+    archivesName = "devive-jetty-manager"
+}
+version = '0.1.0'
+
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
+javadoc.options.encoding = "UTF-8"
+javadoc.failOnError = false
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    implementation 'com.devives:devive-commons-lang:0.3.1'
+    implementation 'com.devives:devive-commons-manager:0.3.2'
+
+// Can be uncommented for debugging.
+
+//    compileOnly 'org.eclipse.jetty:jetty-xml:9.4.53.v20231009'
+//    compileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
+//    compileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
+//    compileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-xml:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
+
+//    compileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
+//    compileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
+//    compileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-server:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-start:9.4.53.v20231009'
+//    testCompileOnly 'org.eclipse.jetty:jetty-security:9.4.53.v20231009'
+
+    compileOnly 'org.eclipse.jetty:jetty-server:12.1.1'
+    compileOnly 'org.eclipse.jetty:jetty-start:12.1.1'
+    compileOnly 'org.eclipse.jetty:jetty-security:12.1.1'
+    testCompileOnly 'org.eclipse.jetty:jetty-server:12.1.1'
+    testCompileOnly 'org.eclipse.jetty:jetty-start:12.1.1'
+    testCompileOnly 'org.eclipse.jetty:jetty-security:12.1.1'
+
+//    testImplementation platform('org.junit:junit-bom')
+//    testImplementation 'org.junit.jupiter:junit-jupiter'
+//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+test {
+    useJUnitPlatform()
+}
