@@ -1,6 +1,6 @@
 package com.devives.jetty;
 
-import com.devives.jetty.adapters.ServerAdapter;
+import com.devives.jetty.contract.Environment;
 import org.junit.jupiter.api.*;
 
 import java.net.URL;
@@ -65,6 +65,11 @@ public class Jetty12ContainerTest {
         Assertions.assertThrows(ContainerException.class, container::getServerAdapter);
         container.start();
         ServerAdapter serverAdapter = container.getServerAdapter();
+        Assertions.assertNotNull(serverAdapter.getClassLoader());
+        Environment.Static.at(serverAdapter.getClassLoader()).getAll().forEach(environment -> logger.info("Environment{name=\"" + environment.getName() + "\"}"));
+        Environment environmentEE8 = Environment.Static.at(serverAdapter.getClassLoader()).get("ee8");
+        Assertions.assertNotNull(environmentEE8);
+        Assertions.assertNotNull(environmentEE8.getClassLoader());
         Assertions.assertTrue(serverAdapter.isStarted());
         ((ServerAdapterImpl) serverAdapter).getStartFuture().toCompletableFuture().get();
         logger.info("Server started.");
@@ -89,8 +94,8 @@ public class Jetty12ContainerTest {
                 .setJettyBase(jettyBasePath)
                 // В `demo-base\etc\test-realm.xml` прописан относительный путь `etc/realm.properties`, что приводит к ошибке.
                 // .addStartArgument("jetty.demo.realm", jettyBasePath.resolve("etc/realm.properties").toString())
-                .setStopPort(httpPort + 11) // Необходимо явно задавать порт остановки.
-                //.setStopKey("dfgukhdasflgkdf")
+                .setStopPort(0) // Запуск сокета остановки на произвольном порте.
+                //.setStopKey("dfgukhdasflgkdf") // Jetty сгенерирует произвольный ключ.
                 .build();
         Assertions.assertThrows(ContainerException.class, container::getServerAdapter);
         container.start();

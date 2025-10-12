@@ -1,20 +1,23 @@
 package com.devives.jetty;
 
+import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.reflection.ProxyBuilder;
-import com.devives.jetty.adapters.ServerAdapter;
+import com.devives.jetty.contract.Contract;
+import com.devives.jetty.contract.Server;
 import com.devives.jetty.injection.LifeCycleListener;
-import com.devives.jetty.interfaces.Server;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.stream.Collectors;
 
 
 class ServerAdapterImpl implements ServerAdapter {
     private final CompletableFuture<Void> startFuture_ = new CompletableFuture<>();
     private final CompletableFuture<Void> stopFuture_ = new CompletableFuture<>();
     private final LifeCycleListener lifeCycleHandler_ = new LifeCycleListenerImpl();
-    private volatile ClassLoader classLoader_;
+    private volatile ClassLoader serverClassLoader_;
     private volatile Server serverProxy_;
     private volatile State state_ = State.STOPPED;
 
@@ -27,7 +30,7 @@ class ServerAdapterImpl implements ServerAdapter {
     }
 
     void stop() {
-        serverProxy_.stop();
+        ExceptionUtils.passChecked(serverProxy_::stop);
     }
 
     LifeCycleListener lifeCycleHandler() {
@@ -44,6 +47,10 @@ class ServerAdapterImpl implements ServerAdapter {
 
     void setStopAtShutdown(boolean stop) {
         serverProxy_.setStopAtShutdown(stop);
+    }
+
+    Server getServerProxy() {
+        return serverProxy_;
     }
 
     @Override
@@ -96,7 +103,25 @@ class ServerAdapterImpl implements ServerAdapter {
 
     @Override
     public ClassLoader getClassLoader() {
-        return classLoader_;
+        return serverClassLoader_;
+    }
+
+    public <T> Collection<T> getBeans(Class<T> clazz) throws ClassNotFoundException {
+        if (!Contract.class.isAssignableFrom(clazz)) {
+            throw new ContainerException("The clazz must be a descendant of \"com.devives.jetty.contract.Contract\".");
+        }
+
+        String remoteClassName = null;
+        try {
+            remoteClassName = (String) clazz.getDeclaredField("CLASS_NAME").get(null);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new ContainerException("Passed interface must have \"CLASS_NAME\" field.", e);
+        }
+
+        Class<?> remoteClass = serverClassLoader_.loadClass(remoteClassName);
+        return serverProxy_.getBeans(remoteClass).stream()
+                .map(o -> ProxyBuilder.forClasses(clazz).setTarget(o).build())
+                .collect(Collectors.toList());
     }
 
     public class LifeCycleListenerImpl implements LifeCycleListener {
@@ -105,11 +130,11 @@ class ServerAdapterImpl implements ServerAdapter {
         public void handleServerStarting(Object oServer) {
             try {
                 serverProxy_ = ProxyBuilder.forClasses(Server.class).setTarget(oServer).build();
-                classLoader_ = oServer.getClass().getClassLoader();
+                serverClassLoader_ = oServer.getClass().getClassLoader();
                 state_ = State.STARTING;
             } catch (Exception e) {
                 serverProxy_ = null;
-                classLoader_ = null;
+                serverClassLoader_ = null;
                 throw e;
             }
         }
@@ -125,7 +150,7 @@ class ServerAdapterImpl implements ServerAdapter {
             State priorState = state_;
             state_ = State.FAILED;
             serverProxy_ = null;
-            classLoader_ = null;
+            serverClassLoader_ = null;
             if (priorState == State.STARTING || priorState == State.STARTED) {
                 startFuture_.completeExceptionally(cause);
             } else if (priorState == State.STOPPING || priorState == State.STOPPED) {
@@ -142,7 +167,7 @@ class ServerAdapterImpl implements ServerAdapter {
         public void handleServerStopped() {
             state_ = State.STOPPED;
             serverProxy_ = null;
-            classLoader_ = null;
+            serverClassLoader_ = null;
             stopFuture_.complete(null);
         }
     }

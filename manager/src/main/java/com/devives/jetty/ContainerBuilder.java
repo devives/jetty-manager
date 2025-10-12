@@ -5,7 +5,6 @@ import com.devives.commons.lang.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -62,7 +61,19 @@ public class ContainerBuilder {
         return this;
     }
 
-    public ContainerBuilder setStopPort(Integer stopPort) {
+    /**
+     * Устанавливает порт сокета, для прослушивания команды остановки.
+     * <ul>
+     *     <li> Значение не установлено - сокет не запускается.
+     *     <li> "{@code stopPort < 0}" - Jetty9: сокет не запускается. Jetty12: ошибка.
+     *     <li> "{@code stopPort == 0}" - сокет запускается на произвольном порту.
+     *     <li> "{@code stopPort > 0}" - сокет запускается на указанном порту.
+     * </ul>
+     *
+     * @param stopPort номер порта
+     * @return текущий строитель.
+     */
+    public ContainerBuilder setStopPort(int stopPort) {
         stopPort_ = stopPort;
         return this;
     }
@@ -72,7 +83,7 @@ public class ContainerBuilder {
         return this;
     }
 
-    public ContainerBuilder setStopTimeout(Integer timeoutSeconds) {
+    public ContainerBuilder setStopTimeout(int timeoutSeconds) {
         stopTimeoutSeconds_ = timeoutSeconds;
         return this;
     }
@@ -91,9 +102,9 @@ public class ContainerBuilder {
         URLClassLoader classLoader = buildJettyClassLoader(jettyHome_);
         String[] args = buildStartArgs();
         Container container = new Container(classLoader, args);
-        container.setStopPort(stopPort_);
-        container.setStopKey(stopKey_);
-        container.setStopTimeout(stopTimeoutSeconds_);
+        Optional.ofNullable(stopPort_).ifPresent(container::setStopPort);
+        Optional.ofNullable(stopKey_).ifPresent(container::setStopKey);
+        Optional.ofNullable(stopTimeoutSeconds_).ifPresent(container::setStopTimeout);
         return container;
     }
 

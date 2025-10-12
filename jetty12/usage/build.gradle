@@ -25,6 +25,8 @@ dependencies {
     compileOnly "org.eclipse.jetty:jetty-xml:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-deploy:$jettyVersion"
+    compileOnly "org.eclipse.jetty.ee8:jetty-ee8-webapp:$jettyVersion"
 
     implementation(project(path: ':manager'))
     testImplementation(project(path: ':manager-test'))

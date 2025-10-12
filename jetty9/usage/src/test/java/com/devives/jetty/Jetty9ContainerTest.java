@@ -1,9 +1,9 @@
 package com.devives.jetty;
 
-import com.devives.jetty.adapters.ServerAdapter;
+import com.devives.jetty.contract.Environment;
 import org.junit.jupiter.api.*;
 
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
@@ -69,6 +69,10 @@ public class Jetty9ContainerTest {
         ((ServerAdapterImpl) serverAdapter).getStartFuture().toCompletableFuture().get();
         logger.info("Server started.");
 
+        Assertions.assertThrows(ClassNotFoundException.class, () -> {
+            Environment.Static.at(serverAdapter.getClassLoader()).get("ee8");
+        });
+
         validateServerAvailable(httpPort);
 
         logger.info("Sleep(1000)");
@@ -90,8 +94,8 @@ public class Jetty9ContainerTest {
                 .setJettyBase(jettyBasePath)
                 // В `demo-base\etc\test-realm.xml` прописан относительный путь `etc/realm.properties`, что приводит к ошибке.
                 .addStartArgument("jetty.demo.realm", jettyBasePath.resolve("etc/realm.properties").toString())
-                .setStopPort(0) // Необходимо явно задавать порт остановки.
-                .setStopKey("dfgukhdasflgkdf")
+                .setStopPort(0) // Запуск сокета остановки на произвольном порте.
+                //.setStopKey("dfgukhdasflgkdf") // Jetty сгенерирует произвольный ключ.
                 .build();
         Assertions.assertThrows(ContainerException.class, container::getServerAdapter);
         container.start();
@@ -166,7 +170,7 @@ public class Jetty9ContainerTest {
 
     private void validateServerAvailable(int httpPort) throws Exception {
         HttpURLConnectionResponse response = new HttpURLConnectionBuilder()
-                .get(new URL("http://localhost:" + httpPort + "/")) //
+                .get(URI.create("http://localhost:" + httpPort + "/").toURL()) //
                 .send();
         Assertions.assertEquals(200, response.getStatusCode());
     }

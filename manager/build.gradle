@@ -21,7 +21,7 @@ ext {
 
 dependencies {
     implementation 'com.devives:devive-commons-lang:0.3.1'
-    implementation 'com.devives:devive-commons-manager:0.3.2'
+    implementation 'com.devives:devive-commons-manager:0.3.3'
 
 // Can be uncommented for debugging.
 //    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
