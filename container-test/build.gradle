@@ -1,0 +1,13 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.devives'
+version = '0.1.0'
+
+dependencies {
+    implementation 'com.devives:devive-commons-lang:0.2.0'
+    implementation 'com.devives:devive-commons-manager:0.2.0'
+
+    implementation(project(path: ':container'))
+}

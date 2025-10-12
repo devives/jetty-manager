@@ -2,14 +2,8 @@ plugins {
     id 'java'
 }
 
-group = 'com.devives.jetty'
+group = 'com.devives'
 version = '0.1.0'
-
-compileJava.options.encoding = "UTF-8"
-compileTestJava.options.encoding = "UTF-8"
-
-javadoc.options.encoding = "UTF-8"
-javadoc.failOnError = false
 
 ext {
     jettyVersion = "12.1.1"
@@ -28,8 +22,8 @@ dependencies {
     compileOnly "org.eclipse.jetty:jetty-deploy:$jettyVersion"
     compileOnly "org.eclipse.jetty.ee8:jetty-ee8-webapp:$jettyVersion"
 
-    implementation(project(path: ':manager'))
-    testImplementation(project(path: ':manager-test'))
+    implementation(project(path: ':container'))
+    testImplementation(project(path: ':container-test'))
 }
 
 jar {

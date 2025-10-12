@@ -1,4 +1,4 @@
-group = 'com.devives.jetty'
+group = 'com.devives'
 version = '0.1.0'
 
 subprojects {
@@ -11,11 +11,17 @@ subprojects {
 
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
+            languageVersion = JavaLanguageVersion.of(17)
             vendor = JvmVendorSpec.BELLSOFT
         }
         withJavadocJar()
         withSourcesJar()
+
+        compileJava.options.encoding = "UTF-8"
+        compileTestJava.options.encoding = "UTF-8"
+
+        javadoc.options.encoding = "UTF-8"
+        javadoc.failOnError = false
     }
 
     dependencies {

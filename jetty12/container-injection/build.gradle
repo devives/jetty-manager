@@ -2,25 +2,13 @@ plugins {
     id 'java'
 }
 
-group = 'com.devives.jetty'
+group = 'com.devives'
 version = '0.1.0'
 group = 'com.devives'
 base {
     archivesName = "container-injection"
 }
 version = '0.1.0'
-
-compileJava.options.encoding = "UTF-8"
-compileTestJava.options.encoding = "UTF-8"
-
-//java {
-//    toolchain {
-//        languageVersion = JavaLanguageVersion.of(21)
-//        vendor = JvmVendorSpec.BELLSOFT
-//    }
-//    withJavadocJar()
-//    withSourcesJar()
-//}
 
 ext {
     jettyVersion = "12.1.1"
@@ -31,14 +19,14 @@ dependencies {
     compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
     compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
-    implementation(project(":container-starter"))
+    implementation(project(":container-context"))
 }
 
 // Путь к каталогу назначения
-def targetDir = file('../usage/jetty-container-base/lib')
+def targetDir = file('../usage/container/lib')
 
 // Задача копирования артефакта
-tasks.register('copyJarToJettyLib', Copy) {
+tasks.register('copyJarToUsageLib', Copy) {
     dependsOn tasks.named('jar')   // выполняем после сборки jar
     from tasks.named('jar')        // берём результат jar
     into targetDir                 // каталог назначения
@@ -49,5 +37,5 @@ tasks.register('copyJarToJettyLib', Copy) {
 
 // Если нужно, чтобы копирование выполнялось автоматически после jar:
 tasks.named('jar') {
-    finalizedBy tasks.named('copyJarToJettyLib')
+    finalizedBy tasks.named('copyJarToUsageLib')
 }

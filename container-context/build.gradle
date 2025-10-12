@@ -1,0 +1,50 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.devives'
+version = '0.1.0'
+base {
+    archivesName = "container-context"
+}
+version = '0.1.0'
+
+ext {
+    jettyVersion = "12.1.1"
+}
+
+dependencies {
+    compileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
+    compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
+}
+
+// Путь к каталогу назначения
+def targetDir9 = file('../jetty9/usage/container/lib')
+def targetDir12 = file('../jetty12/usage/container/lib')
+
+// Задача копирования артефакта для Jetty 9
+tasks.register('copyJarToJetty9UsageLib', Copy) {
+    dependsOn tasks.named('jar')   // выполняем после сборки jar
+    from tasks.named('jar')        // берём результат jar
+    into targetDir9                 // каталог назначения
+    rename { String fileName ->
+        fileName // можно переименовать, если нужно
+    }
+}
+// Задача копирования артефакта для Jetty 12
+tasks.register('copyJarToJetty12UsageLib', Copy) {
+    dependsOn tasks.named('jar')   // выполняем после сборки jar
+    from tasks.named('jar')        // берём результат jar
+    into targetDir12                 // каталог назначения
+    rename { String fileName ->
+        fileName // можно переименовать, если нужно
+    }
+}
+
+// Если нужно, чтобы копирование выполнялось автоматически после jar:
+tasks.named('jar') {
+    finalizedBy tasks.named('copyJarToJetty9UsageLib')
+    finalizedBy tasks.named('copyJarToJetty12UsageLib')
+}

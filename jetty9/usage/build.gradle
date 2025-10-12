@@ -2,23 +2,8 @@ plugins {
     id 'java'
 }
 
-group = 'com.devives.jetty'
+group = 'com.devives'
 version = '0.1.0'
-
-compileJava.options.encoding = "UTF-8"
-compileTestJava.options.encoding = "UTF-8"
-
-javadoc.options.encoding = "UTF-8"
-javadoc.failOnError = false
-
-//java {
-//    toolchain {
-//        languageVersion = JavaLanguageVersion.of(21)
-//        vendor = JvmVendorSpec.BELLSOFT
-//    }
-//    withJavadocJar()
-//    withSourcesJar()
-//}
 
 jar {
     enabled = false
@@ -35,10 +20,10 @@ dependencies {
 //    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
 //    compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
 
-    implementation(project(path: ':manager'))
-    testImplementation(project(path: ':manager-test'))
+    implementation(project(path: ':container'))
+    testImplementation(project(path: ':container-test'))
 }
 
 test {
-
+    enabled = true
 }
