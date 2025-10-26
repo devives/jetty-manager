@@ -3,7 +3,9 @@ package com.devives.jetty.container;
 import com.devives.jetty.container.contract.Environment;
 import org.junit.jupiter.api.*;
 
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
@@ -13,15 +15,24 @@ import java.util.logging.Logger;
 public class Jetty12ContainerTest {
 
     private static final Path rootPath = Paths.get("").toAbsolutePath();
+    private static final Path tempPath = rootPath.resolve("out").resolve("test").resolve("temp");
     private static final Path jettyHomePath = rootPath.resolve("jetty-home-12.1.1");
-    private static final Path jettyInjectionBasePath = rootPath.resolve("container");
     private static final Path jettyBasePath = rootPath.resolve("jetty-base");
-    //    private static final Path jettyBasePath = rootPath.resolve("jetty-base");
     private final Logger logger = Logger.getLogger(getClass().getCanonicalName());
+
+    @BeforeAll
+    static void beforeAll() throws IOException {
+        Files.createDirectories(tempPath);
+    }
 
     @Test
     public void startStop() throws Exception {
         doStartStop();
+    }
+
+    @Test
+    public void startStop_manualInjections() throws Exception {
+        doStartStop(8080, 8443, true);
     }
 
     @Test
@@ -37,26 +48,33 @@ public class Jetty12ContainerTest {
     }
 
     private void doStartStop() throws Exception {
-        doStartStop(8080, 8443);
+        doStartStop(8080, 8443, false);
     }
 
     private void doStartStopAsync() throws Exception {
         doStartStopAsync(8080, 8443);
     }
 
-    private ContainerBuilder createContainerBuilder() {
-        return new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
+    private ContainerBuilder createContainerBuilder(boolean manualInjection) {
+        ContainerBuilder builder = new ContainerBuilder(Thread.currentThread().getContextClassLoader(), jettyHomePath)
                 //.setIncludeJettyDir(jettyInjectionBasePath)
-                .addStartJar(jettyInjectionBasePath.resolve("lib\\container-context-0.1.0.jar"))
-                .addLibrary(jettyInjectionBasePath.resolve("lib\\container-injection-0.1.0.jar"))
-                .addStartArgument(jettyInjectionBasePath.resolve("etc\\jetty-container-injection.xml").toString());
+                .setJettyBase(jettyBasePath)
+                .setTempPath(tempPath)
+                ;
+        if (manualInjection) {
+            Path projectGroupRoot = rootPath.getParent().getParent();
+            builder.disableInjections()
+                    .addStartJar(projectGroupRoot.resolve("container/src/main/resources/com/devives/jetty/container/lib/devive-jetty-container-context.jar"))
+                    .addLibrary(projectGroupRoot.resolve("container/src/main/resources/com/devives/jetty/container/jetty12/lib/devive-jetty12-container-injection.jar"))
+                    .addStartArgument(projectGroupRoot.resolve("container/src/main/resources/com/devives/jetty/container/jetty12/etc/container-injection.xml").toString());
+        }
+        return builder;
     }
 
-    private void doStartStop(int httpPort, int httpsPort) throws Exception {
-        Container container = createContainerBuilder()
+    private void doStartStop(int httpPort, int httpsPort, boolean manualInjection) throws Exception {
+        Container container = createContainerBuilder(manualInjection)
                 .setHttpPort(httpPort)
                 .setHttpsPort(httpsPort)
-                .setJettyBase(jettyBasePath)
                 // В `demo-base\etc\test-realm.xml` прописан относительный путь `etc/realm.properties`, что приводит к ошибке.
                 // .addStartArgument("jetty.demo.realm", jettyBasePath.resolve("etc/realm.properties").toString())
                 // .addStartArgument("help")
@@ -88,10 +106,10 @@ public class Jetty12ContainerTest {
     }
 
     private void doStartStopAsync(int httpPort, int httpsPort) throws Exception {
-        Container container = createContainerBuilder()
+        Container container = createContainerBuilder(false)
                 .setHttpPort(httpPort)
                 .setHttpsPort(httpsPort)
-                .setJettyBase(jettyBasePath)
+                //.setStopTimeout(10)
                 // В `demo-base\etc\test-realm.xml` прописан относительный путь `etc/realm.properties`, что приводит к ошибке.
                 // .addStartArgument("jetty.demo.realm", jettyBasePath.resolve("etc/realm.properties").toString())
                 .setStopPort(0) // Запуск сокета остановки на произвольном порте.
@@ -123,7 +141,7 @@ public class Jetty12ContainerTest {
         final CompletableFuture<Void> future2 = new CompletableFuture<>();
         final Thread thread1 = new Thread(() -> {
             try {
-                doStartStop(8080, 8443);
+                doStartStop(8080, 8443, false);
                 future1.complete(null);
             } catch (Exception e) {
                 future1.completeExceptionally(e);
@@ -151,12 +169,12 @@ public class Jetty12ContainerTest {
     @Test
     @Order(Integer.MAX_VALUE)
     public void startStop_OnJvmExit() throws Exception {
-        Container container = createContainerBuilder()
+        Container container = createContainerBuilder(false)
                 .setJettyBase(jettyBasePath)
                 .build();
         container.start();
-        Server serverAdapter = container.getServer();
-        Assertions.assertTrue(serverAdapter.isStarted());
+        Server server = container.getServer();
+        Assertions.assertTrue(server.isStarted());
         logger.info("Server started.");
 
         validateServerAvailable(8080);

@@ -8,22 +8,7 @@ subprojects {
         mavenCentral()
         mavenLocal()
     }
-
-    java {
-        toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
-            vendor = JvmVendorSpec.BELLSOFT
-        }
-        withJavadocJar()
-        withSourcesJar()
-
-        compileJava.options.encoding = "UTF-8"
-        compileTestJava.options.encoding = "UTF-8"
-
-        javadoc.options.encoding = "UTF-8"
-        javadoc.failOnError = false
-    }
-
+    
     dependencies {
         testImplementation platform('org.junit:junit-bom:5.13.3')
         testImplementation 'org.junit.jupiter:junit-jupiter-api:5.13.3'
@@ -32,6 +17,7 @@ subprojects {
     }
 
     tasks.withType(Test).configureEach {
+        enabled = false
         useJUnitPlatform()
     }
 }

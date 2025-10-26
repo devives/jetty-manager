@@ -1,3 +1,19 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.devives.jetty.container;
 
 import com.devives.commons.lang.ExceptionUtils;
@@ -5,11 +21,15 @@ import com.devives.commons.lang.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 
 /**
@@ -22,11 +42,14 @@ public class ContainerBuilder {
     private final Path jettyHome_;
     private Path jettyBase_;
     private Path includeJettyDir_;
+    private Path containerTempDir_;
     private Integer httpPort_ = 8080;
     private Integer httpsPort_ = 8443;
     private Integer stopPort_;
     private String stopKey_;
-    private Long stopTimeoutSeconds_;
+    private Long stopTimeoutSeconds_ = 15L;
+    private boolean injectionsEnabled_ = true;
+    private Version injectionsVersion_ = Version.Auto;
     private final Map<String, String> argumentMap_ = new HashMap<>();
     private final Set<URL> startJarSet_ = new HashSet<>();
     private final Set<Path> librarySet_ = new HashSet<>();
@@ -63,6 +86,12 @@ public class ContainerBuilder {
     public ContainerBuilder addLibrary(Path jarPath) {
         Objects.requireNonNull(jarPath, "jarPath");
         librarySet_.add(jarPath);
+        return this;
+    }
+
+    public ContainerBuilder setTempPath(Path tempPath) {
+        Objects.requireNonNull(tempPath, "tempPath");
+        containerTempDir_ = tempPath;
         return this;
     }
 
@@ -161,8 +190,10 @@ public class ContainerBuilder {
     }
 
     /**
-     * @param name
-     * @param value
+     * Добавляет аргумент запуска Jetty-сервера со значением.
+     *
+     * @param name  имя аргумента.
+     * @param value значение аргумента.
      * @return текущий строитель.
      */
     public ContainerBuilder addStartArgument(String name, String value) {
@@ -171,11 +202,45 @@ public class ContainerBuilder {
     }
 
     /**
-     * @param name
+     * Добавляет аргумент запуска Jetty-сервера.
+     *
+     * @param name имя аргумента
      * @return текущий строитель.
      */
     public ContainerBuilder addStartArgument(String name) {
         argumentMap_.put(normalizeArgName(name), null);
+        return this;
+    }
+
+    /**
+     * Отключает автоматическое добавление инъекций, связывающих экземпляр Jetty-сервера с управляющим контейнером,
+     * в загрузчики Jetty-классов. Если отключить добавление инъекций, добавление конфигурационного xml-файла
+     * и jar-файла с иньекцией, необходимо через аргументы запуска контейнера.
+     *
+     * @return текущий строитель.
+     */
+    public ContainerBuilder disableInjections() {
+        injectionsEnabled_ = false;
+        return this;
+    }
+
+    /**
+     * Устанавливает версию инжектируемых ресурсов, которые необходимо использовать.
+     * <p>
+     * Инжектируемые jar-файлы и xml-файлы конфигурации содержатся в ресурсах текущего jar-файла:
+     * <ul>
+     *     <li>{@code com/devives/jetty/container/lib/container-context-0.1.0.jar}
+     *     <li>{@code com/devives/jetty/container/jetty9/etc/container-injection.xml}
+     *     <li>{@code com/devives/jetty/container/jetty9/lib/devive-jetty9-container-injection-0.1.0.jar}
+     *     <li>{@code com/devives/jetty/container/jetty12/etc/container-injection.xml}
+     *     <li>{@code com/devives/jetty/container/jetty12/lib/devive-jetty12-container-injection-0.1.0.jar}
+     * </ul>
+     *
+     * @param version новое значение.
+     * @return текущий строитель.
+     */
+    public ContainerBuilder setInjectionsVersion(Version version) {
+        injectionsVersion_ = version;
         return this;
     }
 
@@ -185,15 +250,28 @@ public class ContainerBuilder {
      * @return новый экземпляр {@link Container}.
      */
     public Container build() {
-        URLClassLoader classLoader = buildJettyClassLoader(jettyHome_);
-        String[] args = buildStartArgs();
-        Container container = new Container(classLoader, args);
-        Optional.ofNullable(httpPort_).ifPresent(container::setHttpPort);
-        Optional.ofNullable(httpsPort_).ifPresent(container::setHttpsPort);
-        Optional.ofNullable(stopPort_).ifPresent(container::setStopPort);
-        Optional.ofNullable(stopKey_).ifPresent(container::setStopKey);
-        Optional.ofNullable(stopTimeoutSeconds_).ifPresent(container::setStopTimeout);
-        return container;
+        try {
+            validateJettyHome(jettyHome_);
+            if (injectionsEnabled_) {
+                int version = injectionsVersion_ == Version.Auto
+                        ? determineJettyMajorVersion(jettyHome_)
+                        : injectionsVersion_.getVersion();
+                prepareContainerResources(version);
+            }
+            String[] args = buildStartArgs();
+            URLClassLoader classLoader = buildJettyClassLoader(jettyHome_);
+            ContainerProperties properties = new ContainerProperties();
+            Optional.ofNullable(httpPort_).ifPresent(properties::setHttpPort);
+            Optional.ofNullable(httpsPort_).ifPresent(properties::setHttpsPort);
+            Optional.ofNullable(stopPort_).ifPresent(properties::setStopPort);
+            Optional.ofNullable(stopKey_).ifPresent(properties::setStopKey);
+            Optional.ofNullable(stopTimeoutSeconds_).ifPresent(properties::setStopTimeout);
+            Container container = new Container(classLoader, properties, args);
+            return container;
+        } catch (Exception e) {
+            throw ExceptionUtils.asUnchecked(e);
+        }
+
     }
 
     private String[] buildStartArgs() {
@@ -233,21 +311,70 @@ public class ContainerBuilder {
         return trimmedName.toLowerCase();
     }
 
-    private URLClassLoader buildJettyClassLoader(Path jettyHome) {
+    private void validateJettyHome(Path jettyHome) {
         try {
             if (!Files.exists(jettyHome)) {
                 throw new IOException(String.format("Directory '%s' is not exits.", jettyHome.toAbsolutePath()));
             }
-            List<URL> urls = new ArrayList<>();
             Path startJarPath = jettyHome.resolve("start.jar");
             if (!Files.exists(startJarPath)) {
                 throw new IOException(String.format("File '%s' is not exits.", startJarPath.toAbsolutePath()));
             }
-            urls.add(startJarPath.toUri().toURL());
-            urls.addAll(startJarSet_);
-            return new URLClassLoader(urls.toArray(new URL[0]), parentClassLoader_);
         } catch (Exception e) {
             throw ExceptionUtils.asUnchecked(e);
+        }
+    }
+
+    private void prepareContainerResources(int jettyVersion) throws IOException {
+
+        Path tempDir = containerTempDir_ != null ? containerTempDir_ : Paths.get(System.getProperty("java.io.tmpdir"));
+        Path tempPath = Files.createTempDirectory(tempDir, "jetty-container-");
+        tempPath.toFile().deleteOnExit();
+
+        String jarName = "devive-jetty-container-context.jar";
+        Path dest = tempPath.resolve(jarName);
+        copyResource("lib/" + jarName, dest);
+        dest.toFile().deleteOnExit();
+        addStartJar(dest);
+
+        jarName = "devive-jetty" + jettyVersion + "-container-injection.jar";
+        dest = tempPath.resolve(jarName);
+        copyResource("jetty" + jettyVersion + "/lib/" + jarName, dest);
+        dest.toFile().deleteOnExit();
+        addLibrary(dest);
+
+        dest = tempPath.resolve("container-injection.xml");
+        copyResource("jetty" + jettyVersion + "/etc/container-injection.xml", dest);
+        dest.toFile().deleteOnExit();
+        addStartArgument(dest.toString());
+
+    }
+
+    private void copyResource(String name, Path dest) throws IOException {
+        try (InputStream in = getClass().getResourceAsStream(name)) {
+            Files.copy(in, dest, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private URLClassLoader buildJettyClassLoader(Path jettyHome) throws IOException {
+        List<URL> urls = new ArrayList<>();
+        Path startJarPath = jettyHome.resolve("start.jar");
+        urls.add(startJarPath.toUri().toURL());
+        urls.addAll(startJarSet_);
+        return new URLClassLoader(urls.toArray(new URL[0]), parentClassLoader_);
+    }
+
+    private static int determineJettyMajorVersion(Path jettyHome) throws Exception {
+        Path startJarPath = jettyHome.resolve("start.jar");
+        List<URL> urls = new ArrayList<>();
+        urls.add(startJarPath.toUri().toURL());
+        try (URLClassLoader urlClassLoader = new URLClassLoader(urls.toArray(new URL[0]), null)) {
+            URL manifestUrl = urlClassLoader.findResource("META-INF/MANIFEST.MF");
+            try (InputStream in = manifestUrl.openStream()) {
+                Manifest manifest = new Manifest(in);
+                String sVersion = manifest.getMainAttributes().getValue("Implementation-Version");
+                return Integer.parseInt(sVersion.split("\\.", 2)[0]);
+            }
         }
     }
 

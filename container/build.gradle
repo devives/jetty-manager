@@ -1,5 +1,8 @@
 plugins {
-    id 'java'
+    id 'java-library'
+    id "com.github.hierynomus.license" version "0.16.1"
+    id "maven-publish"
+    id 'signing'
 }
 
 group = 'com.devives'
@@ -9,7 +12,166 @@ base {
 version = '0.1.0'
 
 dependencies {
-    implementation 'com.devives:devive-commons-lang:0.3.1'
-    implementation 'com.devives:devive-commons-manager:0.3.3'
+    implementation 'com.devives:devive-commons-lang:0.4.0'
 }
 
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+    withJavadocJar()
+    withSourcesJar()
+
+    compileJava.options.encoding = "UTF-8"
+    compileTestJava.options.encoding = "UTF-8"
+
+    javadoc.options.encoding = "UTF-8"
+    javadoc.failOnError = false
+}
+
+var Manifest localManifest  = manifest {
+    attributes = [
+            "Manifest-Version"      : "1.0",
+            "Name"                  : "com/devives/jetty/container",
+            "Specification-Title"   : "The container of Jetty Server",
+            "Specification-Version" : "$project.version",
+            "Specification-Vendor"  : "Vladimir Ivanov",
+            "Implementation-Title"  : "com.devives.jetty.container",
+            "Implementation-Version": "$project.version",
+            "Implementation-Vendor" : "Vladimir Ivanov",
+            "Build-Date"            : new Date().format("yyyy-MM-dd HH:mm:ss (Z)"),
+            "X-Compile-Source-JDK"  : "$sourceCompatibility",
+            "X-Compile-Target-JDK"  : "$targetCompatibility"
+    ]
+}
+
+jar {
+    dependsOn(
+            ':container-context:jar',
+            ':jetty9:container-injection:jar',
+            ':jetty12:container-injection:jar'
+    )
+
+    setManifest(localManifest)
+
+    into("META-INF/maven/$project.group/$archivesBaseName") {
+        from { generatePomFileForContainerPublication }
+        rename ".*", "pom.xml"
+    }
+
+    into("META-INF") {
+        from { "LICENSE" }
+        from { "NOTICE" }
+    }
+}
+
+sourcesJar {
+    dependsOn(
+            ':container-context:copyJarToContainerResources',
+            ':jetty9:container-injection:copyJarToContainerResources',
+            ':jetty12:container-injection:copyJarToContainerResources'
+    )
+
+    setManifest(localManifest)
+
+    into("META-INF/maven/$project.group/$project.name") {
+        from { generatePomFileForContainerPublication }
+        rename ".*", "pom.xml"
+    }
+
+    into("META-INF") {
+        from { "LICENSE" }
+        from { "NOTICE" }
+    }
+}
+
+license {
+    header project.file('codequality/HEADER')
+    strictCheck true
+}
+
+licenseMain {
+    dependsOn(
+            ':container-context:copyJarToContainerResources',
+            ':jetty9:container-injection:copyJarToContainerResources',
+            ':jetty12:container-injection:copyJarToContainerResources'
+    )
+}
+
+publishing {
+    publications {
+        Container(MavenPublication) {
+            artifactId = archivesBaseName
+
+            from components.java
+            pom {
+                packaging = "jar"
+                artifactId = archivesBaseName
+                url = "https://github.com/devives/jetty-manager"
+                description = "The container of Jetty Server."
+                name = "Devive Jetty Container"
+
+                properties = [
+                        "project.build.sourceEncoding": "UTF-8"
+                ]
+
+                organization {
+                    name = "DEVIVES"
+                    url = "https://github.com/devives"
+                }
+
+                licenses {
+                    license {
+                        name = "The Apache Software License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+
+                scm {
+                    connection = "scm:https://github.com/devives/jetty-manager.git"
+                    developerConnection = "scm:git@github.com:devives/jetty-manager.git"
+                    url = "https://github.com/devives/jetty-manager"
+                }
+
+                developers {
+                    developer {
+                        id = "ivvlev"
+                        name = "Vladimir Ivanov"
+                        email = "ivvlev@devives.com"
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'buildRepo'
+            url = layout.buildDirectory.dir("repo")
+        }
+    }
+
+}
+
+signing {
+    sign publishing.publications.Container
+}
+
+tasks.register("zip-for-central-sonatype", Zip) {
+    group("publishing")
+    dependsOn("publish")
+    setArchiveFileName( "$archivesBaseName-$version"+".zip")
+    from(layout.buildDirectory.dir("repo")){
+        exclude("**/maven-metadata.xml*")
+    }
+}
+
+test {
+    enabled = true
+    useJUnitPlatform()
+    jvmArgs = ['-Xmx16G']
+}

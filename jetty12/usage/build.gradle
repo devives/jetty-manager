@@ -5,6 +5,20 @@ plugins {
 group = 'com.devives'
 version = '0.1.0'
 
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+
+    compileJava.options.encoding = "UTF-8"
+    compileTestJava.options.encoding = "UTF-8"
+
+    javadoc.options.encoding = "UTF-8"
+    javadoc.failOnError = false
+}
+
 ext {
     jettyVersion = "12.1.1"
 }
@@ -29,11 +43,7 @@ dependencies {
 jar {
     enabled = false
 }
-//java {
-//    toolchain {
-//        languageVersion = JavaLanguageVersion.of(21)
-//        vendor = JvmVendorSpec.BELLSOFT
-//    }
-//    withJavadocJar()
-//    withSourcesJar()
-//}
+
+test {
+    enabled = true
+}

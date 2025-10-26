@@ -1,12 +1,28 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.devives.jetty.container;
 
-import com.devives.commons.lang.ClassLoaderUtils;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.jetty.container.contract.ContainerContext;
 import com.devives.jetty.container.contract.Main;
 import com.devives.jetty.container.contract.ShutdownMonitor;
 import com.devives.jetty.container.contract.ShutdownService;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -42,43 +58,32 @@ public final class Container {
     private static final Object ENV_VARIABLES_LOCK = new Object();
 
     private final ClassLoader classLoader_;
+    private final ContainerProperties properties_;
     private final String[] startArgs_;
     private volatile ServerAdapter serverAdapter_;
     private volatile CompletableFuture<Void> stopFuture_;
-    private volatile Integer httpPort_;
-    private volatile Integer httpsPort_;
+    /**
+     * Actual stop port after container start.
+     */
     private volatile Integer stopPort_;
+    /**
+     * Actual stop key after container start.
+     */
     private volatile String stopKey_;
-    private volatile Long stopTimeout_;
 
-    public Container(ClassLoader classLoader, String[] startArgs) {
+    public Container(ClassLoader classLoader, ContainerProperties properties, String[] startArgs) {
         classLoader_ = Objects.requireNonNull(classLoader);
+        properties_ = Objects.requireNonNull(properties);
         startArgs_ = Objects.requireNonNull(startArgs);
     }
 
     /**
-     * Метод для установки значения из строителя.
+     * Флаг указывает на необходимость вызова {@link System#exit(int)} после остановки Jetty-сервера.
      *
-     * @param httpPort
+     * @return true, если вызывать, иначе false.
      */
-    void setHttpPort(Integer httpPort) {
-        httpPort_ = httpPort;
-    }
-
-    void setHttpsPort(Integer httpsPort) {
-        httpsPort_ = httpsPort;
-    }
-
-    void setStopPort(int stopPort) {
-        stopPort_ = stopPort;
-    }
-
-    void setStopKey(String stopKey) {
-        stopKey_ = stopKey;
-    }
-
-    void setStopTimeout(Long timeoutSeconds) {
-        stopTimeout_ = timeoutSeconds;
+    public boolean isExitVmOnStop() {
+        return properties_.isExitVmOnStop();
     }
 
     /**
@@ -89,7 +94,7 @@ public final class Container {
      * @return номер порта.
      */
     public Integer getHttpPort() {
-        return httpPort_;
+        return properties_.getHttpPort();
     }
 
     /**
@@ -100,11 +105,20 @@ public final class Container {
      * @return номер порта.
      */
     public Integer getHttpsPort() {
-        return httpsPort_;
+        return properties_.getHttpsPort();
     }
 
     /**
-     * Возвращает значение ключа остановки Jetty-сервера.
+     * Return actual stop port after container start.
+     *
+     * @return номер порта.
+     */
+    public Integer getStopPort() {
+        return stopPort_;
+    }
+
+    /**
+     * Return actual stop key after container start.
      *
      * @return значение ключа.
      */
@@ -113,19 +127,15 @@ public final class Container {
     }
 
     /**
-     * @return номер порта остановки.
-     */
-    public int getStopPort() {
-        return stopPort_ != null ? stopPort_ : -1;
-    }
-
-    /**
      * @return таймаут, секунды.
      */
     public Long getStopTimeout() {
-        return stopTimeout_;
+        return properties_.getStopTimeout();
     }
 
+    /**
+     * Запускает контейнер и содержащийся в нём Jetty-сервер.
+     */
     public synchronized void start() {
         if (serverAdapter_ != null) {
             throw new ContainerException("Server has been started already.");
@@ -133,6 +143,7 @@ public final class Container {
         final ServerAdapter serverAdapter = new ServerAdapter();
         synchronized (ENV_VARIABLES_LOCK) {
             ContainerContext.Static context = ContainerContext.Static.at(classLoader_);
+            // Установка ссылки на листенер необходима только в момент запуска Jetty.
             context.setServerEventListener(serverAdapter.getServerEventListener());
             try {
                 try (AutoCloseable ignore = registerShutdownMonitorEnvVariables()) {
@@ -145,6 +156,7 @@ public final class Container {
             }
         }
         setupStopPortAndKey(serverAdapter);
+        final ClassLoader serverClassLoader = serverAdapter.getClassLoader();
         serverAdapter.getStopFuture().thenAccept((x) -> {
             serverAdapter_ = null;
             final CompletableFuture<Void> stopFuture = stopFuture_;
@@ -155,10 +167,19 @@ public final class Container {
                     stopFuture_ = null;
                 }
             }
+            ExceptionUtils.collectAndThrow(
+                    ((Closeable) serverClassLoader)::close,
+                    ((Closeable) classLoader_)::close
+            );
         });
         serverAdapter_ = serverAdapter;
     }
 
+    /**
+     * Получает актуальные порт и ключ остановки из запущенного Jetty-сервера.
+     *
+     * @param serverAdapter адаптер сервера
+     */
     private void setupStopPortAndKey(ServerAdapter serverAdapter) {
         boolean isSetup = false;
         try {
@@ -187,7 +208,7 @@ public final class Container {
      * <p>
      * Для возможности использования этого метода, при запуске Jetty-сервера должен быть указано значение номера
      * порта для сокета остановки.
-     *
+     * @return фьючерс завершения остановки.
      * @see ContainerBuilder#setStopPort(int)
      */
     public synchronized Future<Void> stopAsync() {
@@ -195,11 +216,9 @@ public final class Container {
         if (stopFuture == null) {
             stopFuture = new CompletableFuture<>();
             stopFuture_ = stopFuture;
-            ClassLoaderUtils.callProcInContextClassLoader(classLoader_, () -> {
-                String[] args = buildJettyStopAsyncArgs();
-                // Метод будет ожидать получения уведомления об остановке сервера (по Сокету) в течении stopTimeoutSeconds_ секунд.
-                Main.Static.at(classLoader_).main(args);
-            });
+            String[] args = buildJettyStopAsyncArgs();
+            // Метод будет ожидать получения уведомления об остановке сервера (по Сокету) в течении stopTimeoutSeconds_ секунд.
+            Main.Static.at(classLoader_).main(args);
         }
         return stopFuture;
     }
@@ -228,18 +247,18 @@ public final class Container {
      * @see "org.eclipse.jetty.server.ShutdownMonitor"
      */
     private AutoCloseable registerShutdownMonitorEnvVariables() {
-        if (stopPort_ != null) {
-            System.setProperty("STOP.PORT", String.valueOf(stopPort_));
+        if (properties_.getStopPort() != null) {
+            System.setProperty("STOP.PORT", String.valueOf(properties_.getStopPort()));
         }
-        if (stopKey_ != null) {
-            System.setProperty("STOP.KEY", stopKey_);
+        if (properties_.getStopKey() != null) {
+            System.setProperty("STOP.KEY", properties_.getStopKey());
         }
-        System.setProperty("STOP.EXIT", "false");
+        System.setProperty("STOP.EXIT", Boolean.toString(properties_.isExitVmOnStop()));
         return () -> {
-            if (stopPort_ != null) {
+            if (properties_.getStopPort() != null) {
                 System.clearProperty("STOP.PORT");
             }
-            if (stopKey_ != null) {
+            if (properties_.getStopKey() != null) {
                 System.clearProperty("STOP.KEY");
             }
             System.clearProperty("STOP.EXIT");
@@ -253,8 +272,8 @@ public final class Container {
         }
         args.add("STOP.PORT=" + stopPort_);
         args.add("STOP.KEY=" + stopKey_);
-        if (stopTimeout_ != null && stopTimeout_ > 0) {
-            args.add("STOP.WAIT=" + stopTimeout_);
+        if (properties_.getStopTimeout() != null && properties_.getStopTimeout() > 0) {
+            args.add("STOP.WAIT=" + properties_.getStopTimeout());
         }
         args.add("--stop");
         return args.toArray(new String[0]);
