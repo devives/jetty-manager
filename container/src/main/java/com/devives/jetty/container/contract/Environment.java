@@ -25,7 +25,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- *
+ * A named runtime environment containing.
+ * @since Jetty 12
  */
 @Contract(className = "org.eclipse.jetty.util.component.Environment")
 public interface Environment {
@@ -41,14 +42,25 @@ public interface Environment {
      */
     ClassLoader getClassLoader();
 
+    /**
+     * Создаёт аксессор к статически методам класса.
+     *
+     * @param classLoader загрузчик классов.
+     * @return Аксессор.
+     */
+    public static Statics statics(ClassLoader classLoader) {
+        return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
+            return new Statics(ExceptionUtils.passChecked(() -> classLoader.loadClass(Environment.class.getAnnotation(Contract.class).className())));
+        });
+    }
 
     /**
      * Аксессор к статическим методом класса.
      */
-    final class Static {
+    final class Statics {
         private final Class<?> class_;
 
-        private Static(Class<?> clazz) {
+        private Statics(Class<?> clazz) {
             class_ = Objects.requireNonNull(clazz, "clazz");
         }
 
@@ -68,17 +80,6 @@ public interface Environment {
             });
         }
 
-        /**
-         * Создаёт аксессор к статически методам класса.
-         *
-         * @param classLoader загрузчик классов.
-         * @return Аксессор.
-         */
-        public static Static at(ClassLoader classLoader) {
-            return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
-                return new Static(ExceptionUtils.passChecked(() -> classLoader.loadClass(Environment.class.getAnnotation(Contract.class).className())));
-            });
-        }
     }
 
 }

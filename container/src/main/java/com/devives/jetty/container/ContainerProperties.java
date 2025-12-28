@@ -25,7 +25,7 @@ public class ContainerProperties {
     private Long stopTimeout_;
 
     /**
-     * Метод для установки значения из строителя.
+     * Метод для установки значения {@link #getHttpPort} из строителя.
      *
      * @param httpPort номер порта.
      */
@@ -34,7 +34,7 @@ public class ContainerProperties {
     }
 
     /**
-     * Метод для установки значения из строителя.
+     * Метод для установки значения {@link #getHttpsPort} из строителя.
      *
      * @param httpsPort номер порта.
      */
@@ -43,7 +43,7 @@ public class ContainerProperties {
     }
 
     /**
-     * Метод для установки значения из строителя.
+     * Метод для установки значения {@link #getStopPort} из строителя.
      *
      * @param stopPort номер порта.
      */
@@ -52,7 +52,7 @@ public class ContainerProperties {
     }
 
     /**
-     * Метод для установки значения из строителя.
+     * Метод для установки значения {@link #getStopKey} из строителя.
      *
      * @param stopKey номер порта.
      */
@@ -61,7 +61,7 @@ public class ContainerProperties {
     }
 
     /**
-     * Метод для установки значения из строителя.
+     * Метод для установки значения {@link #getStopTimeout} из строителя.
      *
      * @param timeoutSeconds интервал ожидания, в секундах.
      */
@@ -70,7 +70,7 @@ public class ContainerProperties {
     }
 
     /**
-     * Метод для установки значения из строителя.
+     * Метод для установки значения {@link #isExitVmOnStop} из строителя.
      *
      * @param exitVmOnStop новое значение
      */
@@ -113,7 +113,7 @@ public class ContainerProperties {
      * @return номер порта остановки.
      */
     public Integer getStopPort() {
-        return stopPort_ != null ? stopPort_ : -1;
+        return stopPort_;
     }
 
     /**

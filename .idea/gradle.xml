@@ -12,13 +12,10 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/container" />
             <option value="$PROJECT_DIR$/container-context" />
+            <option value="$PROJECT_DIR$/container-injection" />
             <option value="$PROJECT_DIR$/container-test" />
-            <option value="$PROJECT_DIR$/jetty12" />
-            <option value="$PROJECT_DIR$/jetty12/container-injection" />
-            <option value="$PROJECT_DIR$/jetty12/usage" />
-            <option value="$PROJECT_DIR$/jetty9" />
-            <option value="$PROJECT_DIR$/jetty9/container-injection" />
-            <option value="$PROJECT_DIR$/jetty9/usage" />
+            <option value="$PROJECT_DIR$/container-test/jetty12" />
+            <option value="$PROJECT_DIR$/container-test/jetty9" />
           </set>
         </option>
       </GradleProjectSettings>

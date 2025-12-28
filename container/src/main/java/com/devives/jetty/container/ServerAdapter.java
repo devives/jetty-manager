@@ -18,24 +18,34 @@ package com.devives.jetty.container;
 
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.reflection.ProxyBuilder;
-import com.devives.jetty.container.contract.Contract;
+import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.lifecycle.State;
+import com.devives.commons.lifecycle.Stateful;
+import com.devives.commons.lifecycle.SynchronizedStateHolderImpl;
+import com.devives.jetty.container.contract.*;
 import com.devives.jetty.container.contract.Server;
-import com.devives.jetty.container.contract.ServerEventListener;
 
-import java.util.Arrays;
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
+import static com.devives.commons.lifecycle.LifeCycle.States.*;
 
-class ServerAdapter implements com.devives.jetty.container.Server {
+
+final class ServerAdapter extends Stateful implements com.devives.jetty.container.Server {
     private final CompletableFuture<Void> startFuture_ = new CompletableFuture<>();
     private final CompletableFuture<Void> stopFuture_ = new CompletableFuture<>();
     private final ServerEventListener lifeCycleHandler_ = new ServerProxyListener();
+    private final int version_;
     private volatile ClassLoader serverClassLoader_;
     private volatile Server serverProxy_;
-    private volatile State state_ = State.STOPPED;
+
+    public ServerAdapter(int version) {
+        super(new SynchronizedStateHolderImpl(STARTING));
+        this.version_ = version;
+    }
 
     CompletionStage<Void> getStartFuture() {
         return startFuture_;
@@ -57,12 +67,11 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         serverProxy_.setStopAtShutdown(stop);
     }
 
-    void stop() {
-        ExceptionUtils.passChecked(serverProxy_::stop);
-    }
-
     /**
      * Возвращает слушатель событий экземпляра Jetty-сервера.
+     * <p>
+     * Этот экземпляр устанавливается в {@link ContainerContext.Statics#setServerEventListener(ServerEventListener)} на
+     * время запуска Jetty-сервера.
      *
      * @return слушатель событий.
      */
@@ -70,16 +79,24 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         return lifeCycleHandler_;
     }
 
-    Server getServerProxy() {
-        return serverProxy_;
+    public void stop() throws Exception {
+        ExceptionUtils.passChecked(serverProxy_::stop);
+    }
+
+    public void addListener(LifeCycle.Listener<LifeCycle> listener) {
+
+    }
+
+    public void removeListener(LifeCycle.Listener<LifeCycle> listener) {
+
     }
 
     @Override
     public boolean isRunning() {
         final Server server = serverProxy_;
         return server != null
-                ? serverProxy_.isRunning()
-                : Arrays.binarySearch(new State[]{State.STARTED, State.STARTING}, state_) >= 0;
+                ? server.isRunning()
+                : getStateHolder().isExpected(STARTING, STARTED);
     }
 
     @Override
@@ -87,7 +104,7 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         final Server server = serverProxy_;
         return server != null
                 ? serverProxy_.isStarting()
-                : state_ == State.STARTING;
+                : getStateHolder().isExpected(STARTING);
     }
 
     @Override
@@ -95,7 +112,7 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         final Server server = serverProxy_;
         return server != null
                 ? serverProxy_.isStarted()
-                : state_ == State.STARTED;
+                : getStateHolder().isExpected(STARTED);
     }
 
     @Override
@@ -103,7 +120,7 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         final Server server = serverProxy_;
         return server != null
                 ? serverProxy_.isStopping()
-                : state_ == State.STARTING;
+                : getStateHolder().isExpected(STOPPING);
     }
 
     @Override
@@ -111,7 +128,7 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         final Server server = serverProxy_;
         return server != null
                 ? serverProxy_.isStopped()
-                : state_ == State.STOPPED;
+                : getStateHolder().isExpected(STOPPED);
     }
 
     @Override
@@ -119,7 +136,7 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         final Server server = serverProxy_;
         return server != null
                 ? serverProxy_.isFailed()
-                : state_ == State.FAILED;
+                :  getStateHolder().isExpected(FAILED);
     }
 
     @Override
@@ -127,6 +144,15 @@ class ServerAdapter implements com.devives.jetty.container.Server {
         return serverClassLoader_;
     }
 
+    /**
+     * Возвращает адаптер к экземпляру Jetty-бина.
+     *
+     * @param clazz класс адаптера, аннотированного {@link Contract}.
+     * @param <T>   тип адаптера.
+     * @return новый экземпляр адаптера.
+     * @throws ContainerException     if passed interface has not annotated by {@link Contract}.
+     * @throws ClassNotFoundException if Jetty class loader do not contain class named {@link Contract#className()}.
+     */
     public <T> Collection<T> getBeans(Class<T> clazz) throws ClassNotFoundException {
         Contract contract = clazz.getAnnotation(Contract.class);
         if (contract == null) {
@@ -146,7 +172,7 @@ class ServerAdapter implements com.devives.jetty.container.Server {
             try {
                 serverProxy_ = ProxyBuilder.forClasses(Server.class).setTarget(oServer).build();
                 serverClassLoader_ = oServer.getClass().getClassLoader();
-                state_ = State.STARTING;
+                getStateHolder().set(STARTING);
             } catch (Exception e) {
                 serverProxy_ = null;
                 serverClassLoader_ = null;
@@ -156,43 +182,63 @@ class ServerAdapter implements com.devives.jetty.container.Server {
 
         @Override
         public void handleStarted(Object oServer) {
-            state_ = State.STARTED;
+            getStateHolder().set(STARTED);
             startFuture_.complete(null);
         }
 
         @Override
         public void handleFailure(Object oServer, Throwable cause) {
-            State priorState = state_;
-            state_ = State.FAILED;
+            State priorState = (State) getStateHolder().get();
+            getStateHolder().set(FAILED);
             serverProxy_ = null;
             serverClassLoader_ = null;
-            if (priorState == State.STARTING || priorState == State.STARTED) {
+            if (priorState == STARTING || priorState == STARTED) {
                 startFuture_.completeExceptionally(cause);
-            } else if (priorState == State.STOPPING || priorState == State.STOPPED) {
+            } else if (priorState == STOPPING || priorState == STOPPED) {
                 stopFuture_.completeExceptionally(cause);
             }
         }
 
         @Override
         public void handleStopping(Object oServer) {
-            state_ = State.STOPPING;
+            getStateHolder().set(STOPPING);
         }
 
         @Override
         public void handleStopped(Object oServer) {
-            state_ = State.STOPPED;
-            serverProxy_ = null;
-            serverClassLoader_ = null;
-            stopFuture_.complete(null);
+            getStateHolder().set(STOPPED);
+            try {
+                closeJettyClassLoaders();
+            } finally {
+                serverProxy_ = null;
+                stopFuture_.complete(null);
+            }
         }
     }
 
-    private enum State {
-        STARTING,
-        STARTED,
-        STOPPING,
-        STOPPED,
-        FAILED
+    private void closeJettyClassLoaders() {
+        final ClassLoader classLoader = serverClassLoader_;
+        try {
+            ExceptionUtils.collectAndThrow(
+                    () -> {
+                        // Fix: Jetty does not close URLClassLoader after server stop. It's produce file leaks.
+                        if (version_ >= 12) {
+                            Environment.statics(classLoader).getAll().stream()
+                                    .map(Environment::getClassLoader)
+                                    .filter(Closeable.class::isInstance)
+                                    .map(Closeable.class::cast)
+                                    .forEach(c -> ExceptionUtils.passChecked(c::close));
+                        }
+                    },
+                    () -> {
+                        // Fix: Jetty does not close URLClassLoader after server stop. It's produce file leaks.
+                        if (classLoader instanceof Closeable) {
+                            ((Closeable) classLoader).close();
+                        }
+                    });
+        } finally {
+            serverClassLoader_ = null;
+        }
     }
 
 }

@@ -1,0 +1,158 @@
+plugins {
+    id 'java-library'
+    id "com.github.hierynomus.license" version "0.16.1"
+    id "maven-publish"
+    id 'signing'
+}
+
+group = 'com.devives'
+base {
+    archivesName = "devive-jetty-container-injection"
+}
+version = '0.1.0'
+
+ext {
+    jettyVersion = "9.4.58.v20250814"
+}
+
+dependencies {
+    compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
+    implementation(project(":container"))
+    implementation(project(":container-context"))
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+    withJavadocJar()
+    withSourcesJar()
+
+    compileJava.options.encoding = "UTF-8"
+    compileTestJava.options.encoding = "UTF-8"
+
+    javadoc.options.encoding = "UTF-8"
+    javadoc.failOnError = false
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+var Manifest localManifest  = manifest {
+    attributes = [
+            "Manifest-Version"      : "1.0",
+            "Name"                  : "com/devives/jetty/container/injection",
+            "Specification-Title"   : "The Jetty container injection",
+            "Specification-Version" : "$project.version",
+            "Specification-Vendor"  : "Vladimir Ivanov",
+            "Implementation-Title"  : "com.devives.jetty.container.injection",
+            "Implementation-Version": "$project.version",
+            "Implementation-Vendor" : "Vladimir Ivanov",
+            "Build-Date"            : new Date().format("yyyy-MM-dd HH:mm:ss (Z)"),
+            "X-Compile-Source-JDK"  : "$sourceCompatibility",
+            "X-Compile-Target-JDK"  : "$targetCompatibility"
+    ]
+}
+
+// Задача копирования артефакта
+tasks.register('copyJarToContainerResources', Copy) {
+    dependsOn tasks.named('jar')   // выполняем после сборки jar
+    from tasks.named('jar')        // берём результат jar
+    into file('../container/src/main/resources/com/devives/jetty/container/lib') // каталог назначения
+    rename { String fileName ->
+        // Удаляю версию из имени библиотеки. В ресурсах версия всегда "текущая".
+        fileName.replace("-" + version, "")
+    }
+}
+
+jar {
+    setManifest(localManifest)
+
+    into("META-INF/maven/$project.group/$archivesBaseName") {
+        from { generatePomFileForContainerInjection9Publication }
+        rename ".*", "pom.xml"
+    }
+
+    into("META-INF") {
+        from { "LICENSE" }
+        from { "NOTICE" }
+    }
+
+    finalizedBy tasks.named('copyJarToContainerResources')
+}
+
+//sourcesJar {
+//    setManifest(manifest)
+//
+//    into("META-INF/maven/$project.group/$project.name") {
+//        from { generatePomFileForContainerInjection9Publication }
+//        rename ".*", "pom.xml"
+//    }
+//
+//    into("META-INF") {
+//        from { "LICENSE" }
+//        from { "NOTICE" }
+//    }
+//}
+
+license {
+    header project.file('codequality/HEADER')
+    strictCheck true
+}
+
+
+publishing {
+    publications {
+        ContainerInjection9(MavenPublication) {
+            artifactId = archivesBaseName
+
+            from components.java
+            pom {
+                packaging = "jar"
+                artifactId = archivesBaseName
+                url = "https://github.com/devives/jetty-manager"
+                description = "The Jetty container injection."
+                name = "Devive Jetty Container"
+
+                properties = [
+                        "project.build.sourceEncoding": "UTF-8"
+                ]
+
+                organization {
+                    name = "DEVIVES"
+                    url = "https://github.com/devives"
+                }
+
+                licenses {
+                    license {
+                        name = "The Apache Software License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+
+                scm {
+                    connection = "scm:https://github.com/devives/jetty-manager.git"
+                    developerConnection = "scm:git@github.com:devives/jetty-manager.git"
+                    url = "https://github.com/devives/jetty-manager"
+                }
+
+                developers {
+                    developer {
+                        id = "ivvlev"
+                        name = "Vladimir Ivanov"
+                        email = "ivvlev@devives.com"
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'buildRepo'
+            url = layout.buildDirectory.dir("repo")
+        }
+    }
+
+}

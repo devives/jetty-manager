@@ -29,13 +29,24 @@ import java.util.Objects;
 public interface ShutdownMonitor extends ShutdownService {
 
     /**
+     * Создаёт аксессор к статически методам класса.
+     *
+     * @param classLoader загрузчик классов.
+     * @return Аксессор.
+     */
+    public static Statics statics(ClassLoader classLoader) {
+        return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
+            return new Statics(ExceptionUtils.passChecked(() -> classLoader.loadClass(ShutdownMonitor.class.getAnnotation(Contract.class).className())));
+        });
+    }
+    /**
      * Аксессор к статическим методом класса.
      */
-    final class Static {
+    final class Statics {
 
         private final Class<?> class_;
 
-        private Static(Class<?> clazz) {
+        private Statics(Class<?> clazz) {
             class_ = Objects.requireNonNull(clazz, "clazz");
         }
 
@@ -46,17 +57,6 @@ public interface ShutdownMonitor extends ShutdownService {
             });
         }
 
-        /**
-         * Создаёт аксессор к статически методам класса.
-         *
-         * @param classLoader загрузчик классов.
-         * @return Аксессор.
-         */
-        public static Static at(ClassLoader classLoader) {
-            return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
-                return new Static(ExceptionUtils.passChecked(() -> classLoader.loadClass(ShutdownMonitor.class.getAnnotation(Contract.class).className())));
-            });
-        }
     }
 
 }

@@ -22,16 +22,28 @@ import com.devives.commons.lang.ExceptionUtils;
 import java.util.Objects;
 
 @Contract(className = "org.eclipse.jetty.start.Main")
-public interface Main extends Contract {
+public interface Main {
+
+    /**
+     * Создаёт аксессор к статически методам класса.
+     *
+     * @param classLoader загрузчик классов.
+     * @return Аксессор.
+     */
+    public static Statics statics(ClassLoader classLoader) {
+        return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
+            return new Statics(ExceptionUtils.passChecked(() -> classLoader.loadClass(Main.class.getAnnotation(Contract.class).className())));
+        });
+    }
 
     /**
      * Аксессор к статическим методом класса.
      */
-    final class Static {
+    final class Statics {
 
         private final Class<?> class_;
 
-        Static(Class<?> clazz) {
+        Statics(Class<?> clazz) {
             class_ = Objects.requireNonNull(clazz, "clazz");
         }
 
@@ -41,17 +53,6 @@ public interface Main extends Contract {
             });
         }
 
-        /**
-         * Создаёт аксессор к статически методам класса.
-         *
-         * @param classLoader загрузчик классов.
-         * @return Аксессор.
-         */
-        public static Static at(ClassLoader classLoader) {
-            return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
-                return new Static(ExceptionUtils.passChecked(() -> classLoader.loadClass(Main.class.getAnnotation(Contract.class).className())));
-            });
-        }
     }
 
 }

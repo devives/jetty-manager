@@ -17,7 +17,11 @@
 package com.devives.jetty.container;
 
 import com.devives.commons.lang.ExceptionUtils;
+import com.devives.commons.lang.Ref;
 import com.devives.commons.lang.StringUtils;
+import com.devives.commons.lang.call.Try;
+import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lifecycle.InvalidStateException;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +34,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.Manifest;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -43,16 +48,18 @@ public class ContainerBuilder {
     private Path jettyBase_;
     private Path includeJettyDir_;
     private Path containerTempDir_;
-    private Integer httpPort_ = 8080;
-    private Integer httpsPort_ = 8443;
+    private int httpPort_ = 8080;
+    private int httpsPort_ = 8443;
     private Integer stopPort_;
     private String stopKey_;
-    private Long stopTimeoutSeconds_ = 15L;
+    private long stopTimeoutSeconds_ = 15L;
     private boolean injectionsEnabled_ = true;
-    private Version injectionsVersion_ = Version.Auto;
+    private Version jettyVersion_ = Version.Auto;
     private final Map<String, String> argumentMap_ = new HashMap<>();
     private final Set<URL> startJarSet_ = new HashSet<>();
     private final Set<Path> librarySet_ = new HashSet<>();
+    private final List<File> injectedFileList_ = new ArrayList<>();
+    private boolean isBuild_ = false;
 
     /**
      * Создаёт экземпляр строителя контейнера Jetty-сервера.
@@ -239,9 +246,15 @@ public class ContainerBuilder {
      * @param version новое значение.
      * @return текущий строитель.
      */
-    public ContainerBuilder setInjectionsVersion(Version version) {
-        injectionsVersion_ = version;
+    public ContainerBuilder setVersion(Version version) {
+        jettyVersion_ = version;
         return this;
+    }
+
+    private int resolveJettyVersion() throws Exception {
+        return jettyVersion_ == Version.Auto
+                ? determineJettyMajorVersion(jettyHome_)
+                : jettyVersion_.getVersion();
     }
 
     /**
@@ -249,29 +262,54 @@ public class ContainerBuilder {
      *
      * @return новый экземпляр {@link Container}.
      */
-    public Container build() {
-        try {
+    public synchronized Container build() {
+        if (isBuild_) throw new InvalidStateException("The `build` can not be called twice.");
+        Ref<URLClassLoader> classLoader = new Ref<>();
+        Ref<ContainerCloseListener> closeListener = new Ref<>();
+        return Try.callable(() -> {
             validateJettyHome(jettyHome_);
+            int version = resolveJettyVersion();
             if (injectionsEnabled_) {
-                int version = injectionsVersion_ == Version.Auto
-                        ? determineJettyMajorVersion(jettyHome_)
-                        : injectionsVersion_.getVersion();
-                prepareContainerResources(version);
+                injectContainerResources(version);
             }
+            closeListener.set(new ContainerCloseListener(new ArrayList<>(this.injectedFileList_)));
+            classLoader.set(buildJettyClassLoader(jettyHome_));
             String[] args = buildStartArgs();
-            URLClassLoader classLoader = buildJettyClassLoader(jettyHome_);
             ContainerProperties properties = new ContainerProperties();
             Optional.ofNullable(httpPort_).ifPresent(properties::setHttpPort);
             Optional.ofNullable(httpsPort_).ifPresent(properties::setHttpsPort);
             Optional.ofNullable(stopPort_).ifPresent(properties::setStopPort);
             Optional.ofNullable(stopKey_).ifPresent(properties::setStopKey);
             Optional.ofNullable(stopTimeoutSeconds_).ifPresent(properties::setStopTimeout);
-            Container container = new Container(classLoader, properties, args);
-            return container;
-        } catch (Exception e) {
-            throw ExceptionUtils.asUnchecked(e);
+            return new Container(version, classLoader.get(), properties, args, closeListener.get());
+        }).onCatch((th) -> {
+            classLoader.ifPresent(it -> ExceptionUtils.passChecked(it::close));
+            closeListener.ifPresent(it -> ExceptionUtils.passChecked(() -> it.accept(null)));
+            throw th;
+        }).doFinally(() -> {
+            isBuild_ = true;
+        }).call();
+    }
+
+    /**
+     * Обработчик события закрытия контейнера.
+     * <p>
+     * Выполняет удаление файловых ресурсов.
+     * <p>
+     * Объявлен статическим классом, во избежание появления неявных ссылок на экземпляр строителя.
+     */
+    private static final class ContainerCloseListener implements FailableConsumer<Container> {
+
+        private final List<File> resourceFileList_;
+
+        public ContainerCloseListener(List<File> resourceFileList) {
+            resourceFileList_ = Objects.requireNonNull(resourceFileList, "resourceFileList");
         }
 
+        @Override
+        public void accept(Container container) throws Exception {
+            resourceFileList_.forEach(File::delete);
+        }
     }
 
     private String[] buildStartArgs() {
@@ -282,12 +320,8 @@ public class ContainerBuilder {
                     ? jettyBase_.toString()
                     : jettyHome_.resolve(jettyBase_).toAbsolutePath().toString());
         }
-        if (httpPort_ != null) {
-            startArgMap.put("jetty.http.port", httpPort_.toString());
-        }
-        if (httpsPort_ != null) {
-            startArgMap.put("jetty.ssl.port", httpsPort_.toString());
-        }
+        startArgMap.put("jetty.http.port", String.valueOf(httpPort_));
+        startArgMap.put("jetty.ssl.port", String.valueOf(httpsPort_));
         if (includeJettyDir_ != null) {
             startArgMap.put("--include-jetty-dir", includeJettyDir_.toString());
         }
@@ -325,29 +359,30 @@ public class ContainerBuilder {
         }
     }
 
-    private void prepareContainerResources(int jettyVersion) throws IOException {
-
+    private void injectContainerResources(int jettyVersion) throws IOException {
         Path tempDir = containerTempDir_ != null ? containerTempDir_ : Paths.get(System.getProperty("java.io.tmpdir"));
         Path tempPath = Files.createTempDirectory(tempDir, "jetty-container-");
-        tempPath.toFile().deleteOnExit();
+        Logger.getLogger(getClass().getCanonicalName()).info(String.format("Jetty container temp directory: %s", tempPath.toAbsolutePath()));
 
         String jarName = "devive-jetty-container-context.jar";
         Path dest = tempPath.resolve(jarName);
         copyResource("lib/" + jarName, dest);
-        dest.toFile().deleteOnExit();
+        injectedFileList_.add(dest.toFile());
         addStartJar(dest);
 
-        jarName = "devive-jetty" + jettyVersion + "-container-injection.jar";
+        jarName = "devive-jetty-container-injection.jar";
         dest = tempPath.resolve(jarName);
-        copyResource("jetty" + jettyVersion + "/lib/" + jarName, dest);
-        dest.toFile().deleteOnExit();
+        copyResource("lib/" + jarName, dest);
+        injectedFileList_.add(dest.toFile());
         addLibrary(dest);
 
         dest = tempPath.resolve("container-injection.xml");
-        copyResource("jetty" + jettyVersion + "/etc/container-injection.xml", dest);
-        dest.toFile().deleteOnExit();
+        copyResource("etc/jetty" + jettyVersion + "/container-injection.xml", dest);
+        injectedFileList_.add(dest.toFile());
         addStartArgument(dest.toString());
 
+        // Каталог добавляется последним, что бы быть удаленным последним.
+        injectedFileList_.add(tempPath.toFile());
     }
 
     private void copyResource(String name, Path dest) throws IOException {

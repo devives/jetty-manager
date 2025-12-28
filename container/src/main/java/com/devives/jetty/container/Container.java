@@ -17,12 +17,12 @@
 package com.devives.jetty.container;
 
 import com.devives.commons.lang.ExceptionUtils;
-import com.devives.jetty.container.contract.ContainerContext;
-import com.devives.jetty.container.contract.Main;
-import com.devives.jetty.container.contract.ShutdownMonitor;
-import com.devives.jetty.container.contract.ShutdownService;
+import com.devives.commons.lang.call.Try;
+import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lifecycle.LifeCycle;
+import com.devives.commons.lifecycle.LifeCycleAbst;
+import com.devives.jetty.container.contract.*;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -36,7 +36,7 @@ import java.util.concurrent.Future;
  * и обработка всех xml-конфигов jetty. Если запускать embedded jetty, создавая
  * экземпляр jetty.server.Server, будут проигнорированы все конфиги.
  */
-public final class Container {
+public final class Container extends LifeCycleAbst<Container, Container.Listener> implements AutoCloseable {
 
     /**
      * Блокировка решает проблему.
@@ -57,9 +57,11 @@ public final class Container {
      */
     private static final Object ENV_VARIABLES_LOCK = new Object();
 
+    private final int version_;
     private final ClassLoader classLoader_;
     private final ContainerProperties properties_;
     private final String[] startArgs_;
+    private final FailableConsumer<Container> closeCallback_;
     private volatile ServerAdapter serverAdapter_;
     private volatile CompletableFuture<Void> stopFuture_;
     /**
@@ -71,10 +73,12 @@ public final class Container {
      */
     private volatile String stopKey_;
 
-    public Container(ClassLoader classLoader, ContainerProperties properties, String[] startArgs) {
+    Container(int version, ClassLoader classLoader, ContainerProperties properties, String[] startArgs, FailableConsumer<Container> closeCallback) {
+        version_ = version;
         classLoader_ = Objects.requireNonNull(classLoader);
         properties_ = Objects.requireNonNull(properties);
         startArgs_ = Objects.requireNonNull(startArgs);
+        closeCallback_ = Objects.requireNonNull(closeCallback);
     }
 
     /**
@@ -136,30 +140,54 @@ public final class Container {
     /**
      * Запускает контейнер и содержащийся в нём Jetty-сервер.
      */
-    public synchronized void start() {
-        if (serverAdapter_ != null) {
-            throw new ContainerException("Server has been started already.");
-        }
-        final ServerAdapter serverAdapter = new ServerAdapter();
+    @Override
+    protected void onStart() throws Exception {
         synchronized (ENV_VARIABLES_LOCK) {
-            ContainerContext.Static context = ContainerContext.Static.at(classLoader_);
-            // Установка ссылки на листенер необходима только в момент запуска Jetty.
-            context.setServerEventListener(serverAdapter.getServerEventListener());
+            final ServerAdapter serverAdapter = new ServerAdapter(version_);
+            ContainerContext.Statics context = ContainerContext.statics(classLoader_);
+            // Установка ссылкиcom.devives.jetty.container.injection.ServerEventListenerAdapter.serverEventListener_ на листенер необходима только в момент запуска Jetty.
+            // Ссылка на объект будет запомнена в com.devives.jetty.container.injection.ServerEventListenerAdapter.serverEventListener_
+            context.setServerEventListener(new ServerEventListenerWrapper(serverAdapter.getServerEventListener()));
             try {
                 try (AutoCloseable ignore = registerShutdownMonitorEnvVariables()) {
-                    Main.Static.at(classLoader_).main(startArgs_);
+                    // This will start a ServerAdapter.
+                    Main.statics(classLoader_).main(startArgs_);
+                    setupStopPortAndKey(serverAdapter);
+                    serverAdapter.getStopFuture().thenAccept(this::handleServerAdapterClose);
                 } catch (Exception e) {
                     throw ExceptionUtils.asUnchecked(e);
                 }
             } finally {
                 context.setServerEventListener(null);
             }
+            serverAdapter_ = serverAdapter;
         }
-        setupStopPortAndKey(serverAdapter);
-        final ClassLoader serverClassLoader = serverAdapter.getClassLoader();
-        serverAdapter.getStopFuture().thenAccept((x) -> {
+    }
+
+    @Override
+    public void addListener(Listener listener) {
+        super.addListener(listener);
+    }
+
+    @Override
+    public void removeListener(Listener listener) {
+        super.removeListener(listener);
+    }
+
+    private void handleServerAdapterClose(Void x) {
+        final CompletableFuture<Void> stopFuture = stopFuture_;
+        try {
+            ExceptionUtils.collectAndThrow(
+                    ((java.io.Closeable) classLoader_)::close,
+                    () -> {
+                        // Jetty Server can stop after JVM shutdown.
+                        if (getStateHolder().get() == States.STARTED) {
+                            this.close();
+                        }
+                    }
+            );
+        } finally {
             serverAdapter_ = null;
-            final CompletableFuture<Void> stopFuture = stopFuture_;
             if (stopFuture != null) {
                 try {
                     stopFuture.complete(null);
@@ -167,12 +195,7 @@ public final class Container {
                     stopFuture_ = null;
                 }
             }
-            ExceptionUtils.collectAndThrow(
-                    ((Closeable) serverClassLoader)::close,
-                    ((Closeable) classLoader_)::close
-            );
-        });
-        serverAdapter_ = serverAdapter;
+        }
     }
 
     /**
@@ -194,7 +217,7 @@ public final class Container {
         }
         if (!isSetup) {
             // Old style Jetty 9.x
-            ShutdownMonitor shutdownMonitor = ShutdownMonitor.Static.at(serverAdapter.getClassLoader()).getInstance();
+            ShutdownMonitor shutdownMonitor = ShutdownMonitor.statics(serverAdapter.getClassLoader()).getInstance();
             stopPort_ = shutdownMonitor.getPort();
             stopKey_ = shutdownMonitor.getKey();
         }
@@ -218,7 +241,7 @@ public final class Container {
             stopFuture_ = stopFuture;
             String[] args = buildJettyStopAsyncArgs();
             // Метод будет ожидать получения уведомления об остановке сервера (по Сокету) в течении stopTimeoutSeconds_ секунд.
-            Main.Static.at(classLoader_).main(args);
+            Main.statics(classLoader_).main(args);
         }
         return stopFuture;
     }
@@ -226,7 +249,8 @@ public final class Container {
     /**
      * Останавливает Jetty-сервер синхронно.
      */
-    public synchronized void stop() {
+    @Override
+    protected void onStop() throws Exception {
         ((ServerAdapter) getServer()).stop();
     }
 
@@ -279,4 +303,62 @@ public final class Container {
         return args.toArray(new String[0]);
     }
 
+    @Override
+    public void close() throws Exception {
+        Try.runnable(() -> {
+                    if (!isStarted()) {
+                        stop();
+                    }
+                })
+                .doFinally(() -> closeCallback_.accept(this))
+                .run();
+    }
+
+
+    private class ServerEventListenerWrapper implements ServerEventListener {
+
+        private final ServerEventListener delegate_;
+
+        public ServerEventListenerWrapper(ServerEventListener delegate) {
+            delegate_ = Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public void handleStarting(Object oServer) {
+            delegate_.handleStarting(oServer);
+            getPublisher().publish(listener -> listener.onServerConstructed(oServer));
+        }
+
+        @Override
+        public void handleStarted(Object oServer) {
+            delegate_.handleStarted(oServer);
+        }
+
+        @Override
+        public void handleFailure(Object oServer, Throwable cause) {
+            delegate_.handleFailure(oServer, cause);
+        }
+
+        @Override
+        public void handleStopping(Object oServer) {
+            delegate_.handleStopping(oServer);
+        }
+
+        @Override
+        public void handleStopped(Object oServer) {
+            delegate_.handleStopped(oServer);
+        }
+    }
+
+    public interface Listener extends LifeCycle.Listener<Container> {
+
+        /**
+         * Обработчик вызывается после {@link #onStarting()}, но перед {@link #onStarted()}.
+         *
+         * @param jettyServer ссылка на объект {@code org.eclipse.jetty.server.Server}.
+         */
+        default void onServerConstructed(Object jettyServer) {
+
+        }
+    }
 }

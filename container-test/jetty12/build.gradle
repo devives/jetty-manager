@@ -1,0 +1,50 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.devives'
+version = '0.1.0'
+
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.BELLSOFT
+    }
+
+    compileJava.options.encoding = "UTF-8"
+    compileTestJava.options.encoding = "UTF-8"
+
+    javadoc.options.encoding = "UTF-8"
+    javadoc.failOnError = false
+}
+
+ext {
+    jettyVersion = "12.1.1"
+}
+
+dependencies {
+    // ВНИМАНИЕ !!
+    // Подключение этих библиотек приведёт к их добавлению в корневой загрузчик. Спасибо, IDEA!
+    // В результата загрузка классов будет выполнена не из загрузчика jetty.startJars, а из корневого, что приведёт к ошибкам запуска.
+    // Can be uncommented for debugging.
+//    compileOnly "org.eclipse.jetty:jetty-start:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-server:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-xml:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-security:$jettyVersion"
+//    compileOnly "org.eclipse.jetty:jetty-deploy:$jettyVersion"
+//    compileOnly "org.eclipse.jetty.ee8:jetty-ee8-webapp:$jettyVersion"
+
+    testImplementation('com.devives:devive-commons-lang:0.5.0')
+    testImplementation(project(path: ':container'))
+    testImplementation(project(path: ':container-test'))
+}
+
+jar {
+    enabled = false
+}
+
+test {
+    enabled = true
+}

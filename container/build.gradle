@@ -12,7 +12,12 @@ base {
 version = '0.1.0'
 
 dependencies {
-    implementation 'com.devives:devive-commons-lang:0.4.0'
+    implementation 'com.devives:devive-commons-lang:0.5.0'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -52,8 +57,7 @@ var Manifest localManifest  = manifest {
 jar {
     dependsOn(
             ':container-context:jar',
-            ':jetty9:container-injection:jar',
-            ':jetty12:container-injection:jar'
+            ':container-injection:jar'
     )
 
     setManifest(localManifest)
@@ -72,8 +76,7 @@ jar {
 sourcesJar {
     dependsOn(
             ':container-context:copyJarToContainerResources',
-            ':jetty9:container-injection:copyJarToContainerResources',
-            ':jetty12:container-injection:copyJarToContainerResources'
+            ':container-injection:copyJarToContainerResources',
     )
 
     setManifest(localManifest)
@@ -97,8 +100,7 @@ license {
 licenseMain {
     dependsOn(
             ':container-context:copyJarToContainerResources',
-            ':jetty9:container-injection:copyJarToContainerResources',
-            ':jetty12:container-injection:copyJarToContainerResources'
+            ':container-injection:copyJarToContainerResources'
     )
 }
 

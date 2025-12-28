@@ -23,17 +23,35 @@ import com.devives.commons.lang.reflection.ProxyBuilder;
 import java.lang.reflect.Method;
 import java.util.Objects;
 
+/**
+ * Интерфейс контекста Jetty-контейнера.
+ * <p>
+ * Декларирует методы связывания экземпляра Jetty-сервера с контейнером, управляющим этим экземпляром.
+ */
 @Contract(className = "com.devives.jetty.container.context.ContainerContext")
 public interface ContainerContext {
 
     /**
+     * Создаёт аксессор к статически методам класса.
+     * <pre>{@code ContainerContext.Static.at(getClassLoader).setServerEventListener(listener);}</pre>
+     *
+     * @param classLoader загрузчик классов.
+     * @return Аксессор.
+     */
+    public static Statics statics(ClassLoader classLoader) {
+        return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
+            return new Statics(ExceptionUtils.passChecked(() -> classLoader.loadClass(ContainerContext.class.getAnnotation(Contract.class).className())));
+        });
+    }
+
+    /**
      * Аксессор к статическим методом класса.
      */
-    final class Static {
+    final class Statics {
 
         private final Class<?> class_;
 
-        private Static(Class<?> clazz) {
+        private Statics(Class<?> clazz) {
             class_ = Objects.requireNonNull(clazz, "clazz");
         }
         /**
@@ -56,16 +74,5 @@ public interface ContainerContext {
             });
         }
 
-        /**
-         * Создаёт аксессор к статически методам класса.
-         *
-         * @param classLoader загрузчик классов.
-         * @return Аксессор.
-         */
-        public static Static at(ClassLoader classLoader) {
-            return ClassLoaderUtils.callFuncInContextClassLoader(classLoader, () -> {
-                return new Static(ExceptionUtils.passChecked(() -> classLoader.loadClass(ContainerContext.class.getAnnotation(Contract.class).className())));
-            });
-        }
     }
 }

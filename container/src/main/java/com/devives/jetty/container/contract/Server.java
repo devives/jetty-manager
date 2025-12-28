@@ -19,7 +19,7 @@ package com.devives.jetty.container.contract;
 import java.util.Collection;
 
 @Contract(className = "org.eclipse.jetty.server.Server")
-public interface Server extends Contract, LifeCycle {
+public interface Server extends LifeCycle {
 
     long getStopTimeout();
 
