@@ -19,8 +19,9 @@ package com.devives.jetty.container;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lifecycle.AbstractLifeCycle;
 import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.lifecycle.LifeCycleAbst;
+import com.devives.commons.lifecycle.LifeCycleStates;
 import com.devives.jetty.container.contract.*;
 
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import java.util.concurrent.Future;
  * и обработка всех xml-конфигов jetty. Если запускать embedded jetty, создавая
  * экземпляр jetty.server.Server, будут проигнорированы все конфиги.
  */
-public final class Container extends LifeCycleAbst<Container, Container.Listener> implements AutoCloseable {
+public final class Container extends AbstractLifeCycle implements AutoCloseable {
 
     /**
      * Блокировка решает проблему.
@@ -165,12 +166,12 @@ public final class Container extends LifeCycleAbst<Container, Container.Listener
     }
 
     @Override
-    public void addListener(Listener listener) {
+    public void addListener(LifeCycle.Listener listener) {
         super.addListener(listener);
     }
 
     @Override
-    public void removeListener(Listener listener) {
+    public void removeListener(LifeCycle.Listener listener) {
         super.removeListener(listener);
     }
 
@@ -181,7 +182,7 @@ public final class Container extends LifeCycleAbst<Container, Container.Listener
                     ((java.io.Closeable) classLoader_)::close,
                     () -> {
                         // Jetty Server can stop after JVM shutdown.
-                        if (getStateHolder().get() == States.STARTED) {
+                        if (getStateHolder().get() == LifeCycleStates.STARTED) {
                             this.close();
                         }
                     }
@@ -326,7 +327,7 @@ public final class Container extends LifeCycleAbst<Container, Container.Listener
         @Override
         public void handleStarting(Object oServer) {
             delegate_.handleStarting(oServer);
-            getPublisher().publish(listener -> listener.onServerConstructed(oServer));
+            getPublisher().publish(listener -> ((Container.Listener) listener).onServerConstructed(oServer));
         }
 
         @Override
@@ -350,7 +351,7 @@ public final class Container extends LifeCycleAbst<Container, Container.Listener
         }
     }
 
-    public interface Listener extends LifeCycle.Listener<Container> {
+    public interface Listener extends LifeCycle.Listener {
 
         /**
          * Обработчик вызывается после {@link #onStarting()}, но перед {@link #onStarted()}.

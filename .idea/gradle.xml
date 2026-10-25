@@ -14,7 +14,6 @@
             <option value="$PROJECT_DIR$/container-context" />
             <option value="$PROJECT_DIR$/container-injection" />
             <option value="$PROJECT_DIR$/container-test" />
-            <option value="$PROJECT_DIR$/container-test/jetty12" />
             <option value="$PROJECT_DIR$/container-test/jetty9" />
           </set>
         </option>

@@ -1,5 +1,6 @@
 package com.devives.jetty.container;
 
+import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.jetty.container.contract.Environment;
 import org.junit.jupiter.api.*;
 
@@ -92,8 +93,8 @@ public class Jetty9ContainerTest {
         Assertions.assertThrows(ContainerException.class, container::getServer);
         container.addListener(new Container.Listener() {
             @Override
-            public void onStarting(Container object) {
-                Assertions.assertThrows(ContainerException.class, object::getServer);
+            public void onStarting(LifeCycle object) {
+                Assertions.assertThrows(ContainerException.class, () -> ((Container) object).getServer());
             }
 
             @Override
@@ -104,17 +105,17 @@ public class Jetty9ContainerTest {
             }
 
             @Override
-            public void onStarted(Container object) {
-                Assertions.assertNotNull(object.getServer());
+            public void onStarted(LifeCycle object) {
+                Assertions.assertNotNull(((Container) object).getServer());
             }
 
             @Override
-            public void onStopping(Container object) {
-                Assertions.assertNotNull(object.getServer());
+            public void onStopping(LifeCycle object) {
+                Assertions.assertNotNull(((Container) object).getServer());
             }
 
             @Override
-            public void onStopped(Container object) {
+            public void onStopped(LifeCycle object) {
                 Assertions.assertThrows(ContainerException.class, container::getServer);
             }
         });

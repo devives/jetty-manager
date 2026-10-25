@@ -19,9 +19,9 @@ package com.devives.jetty.container;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.reflection.ProxyBuilder;
 import com.devives.commons.lifecycle.LifeCycle;
-import com.devives.commons.lifecycle.State;
-import com.devives.commons.lifecycle.Stateful;
-import com.devives.commons.lifecycle.SynchronizedStateHolderImpl;
+import com.devives.commons.state.State;
+import com.devives.commons.state.Stateful;
+import com.devives.commons.state.SynchronizedStateHolderImpl;
 import com.devives.jetty.container.contract.*;
 import com.devives.jetty.container.contract.Server;
 
@@ -31,10 +31,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
-import static com.devives.commons.lifecycle.LifeCycle.States.*;
+import static com.devives.commons.lifecycle.LifeCycleStates.*;
 
 
-final class ServerAdapter extends Stateful implements com.devives.jetty.container.Server {
+final class ServerAdapter extends Stateful<State> implements com.devives.jetty.container.Server {
     private final CompletableFuture<Void> startFuture_ = new CompletableFuture<>();
     private final CompletableFuture<Void> stopFuture_ = new CompletableFuture<>();
     private final ServerEventListener lifeCycleHandler_ = new ServerProxyListener();
@@ -43,7 +43,7 @@ final class ServerAdapter extends Stateful implements com.devives.jetty.containe
     private volatile Server serverProxy_;
 
     public ServerAdapter(int version) {
-        super(new SynchronizedStateHolderImpl(STARTING));
+        super(new SynchronizedStateHolderImpl<>(STARTING));
         this.version_ = version;
     }
 
@@ -83,11 +83,11 @@ final class ServerAdapter extends Stateful implements com.devives.jetty.containe
         ExceptionUtils.passChecked(serverProxy_::stop);
     }
 
-    public void addListener(LifeCycle.Listener<LifeCycle> listener) {
+    public void addListener(LifeCycle.Listener listener) {
 
     }
 
-    public void removeListener(LifeCycle.Listener<LifeCycle> listener) {
+    public void removeListener(LifeCycle.Listener listener) {
 
     }
 

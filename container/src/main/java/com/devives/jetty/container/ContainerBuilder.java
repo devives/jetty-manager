@@ -17,11 +17,11 @@
 package com.devives.jetty.container;
 
 import com.devives.commons.lang.ExceptionUtils;
-import com.devives.commons.lang.Ref;
 import com.devives.commons.lang.StringUtils;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.lang.function.FailableConsumer;
-import com.devives.commons.lifecycle.InvalidStateException;
+import com.devives.commons.lang.ref.Ref;
+import com.devives.commons.state.InvalidStateException;
 
 import java.io.File;
 import java.io.IOException;
@@ -264,8 +264,8 @@ public class ContainerBuilder {
      */
     public synchronized Container build() {
         if (isBuild_) throw new InvalidStateException("The `build` can not be called twice.");
-        Ref<URLClassLoader> classLoader = new Ref<>();
-        Ref<ContainerCloseListener> closeListener = new Ref<>();
+        Ref<URLClassLoader> classLoader = Ref.ofNullable();
+        Ref<ContainerCloseListener> closeListener = Ref.ofNullable();
         return Try.callable(() -> {
             validateJettyHome(jettyHome_);
             int version = resolveJettyVersion();
