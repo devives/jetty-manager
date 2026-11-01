@@ -12,8 +12,8 @@ public class HttpURLConnectionBuilder {
 
     // See javax.ws.rs.core.HttpHeaders
 
-    // Body type in request
-    public static final String CONTENT_TYPE = "Content-Type: application/json";
+    // Header name of body type in request
+    public static final String CONTENT_TYPE = "Content-Type";
 
     // Accepted response by client
     public static final String ACCEPT = "Accept";
@@ -67,70 +67,75 @@ public class HttpURLConnectionBuilder {
 
     public HttpURLConnectionResponse send() throws IOException {
         HttpURLConnection conn = (HttpURLConnection) this.url.openConnection();
+        try {
+            // Set Request Method
+            conn.setRequestMethod(this.method);
 
-        // Set Request Method
-        conn.setRequestMethod(this.method);
-
-        // Set Request Headers
-        for (String name : this.headers.keySet()) {
-            conn.setRequestProperty(name, this.headers.get(name));
-        }
-
-        // Trace Log Request
-        System.out.println(conn.getRequestMethod() + " " + conn.getURL());
-        for (String key : conn.getRequestProperties().keySet()) {
-            System.out.println(
-                    "  >> " + key + ": " + conn.getRequestProperty(key));
-        }
-
-        // Set Request Body
-        if (this.body != null) {
-            conn.setDoOutput(true);
-            try (OutputStreamWriter output = new OutputStreamWriter(
-                    new BufferedOutputStream(conn.getOutputStream()),
-                    StandardCharsets.UTF_8)) {
-
-                output.write(this.body);
+            // Set Request Headers
+            for (String name : this.headers.keySet()) {
+                conn.setRequestProperty(name, this.headers.get(name));
             }
-        }
 
-        // Send Request and Get Response Code
-        int responseCode = conn.getResponseCode();
-
-        // Get Response Body
-        InputStream responseStream = null;
-        if (responseCode >= 200 && responseCode <= 299) {
-
-            responseStream = conn.getInputStream();
-        } else {
-
-            responseStream = conn.getErrorStream();
-        }
-        String responseBody = null;
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(
-                responseStream, StandardCharsets.UTF_8))) {
-
-            StringBuilder builder = new StringBuilder();
-            for (String line = null; (line = in.readLine()) != null;) {
-                builder.append(line);
-            }
-            responseBody = builder.toString();
-        }
-
-        // Get Response Headers
-        Map<String, List<String>> responseHeaders = conn.getHeaderFields();
-
-        // Trace Log Response
-        System.out.println("<< " + conn.getHeaderField(null));
-        for (String key : conn.getHeaderFields().keySet()) {
-            if (key != null) {
+            // Trace Log Request
+            System.out.println(conn.getRequestMethod() + " " + conn.getURL());
+            for (String key : conn.getRequestProperties().keySet()) {
                 System.out.println(
-                        "  << " + key + ": " + conn.getHeaderField(key));
+                        "  >> " + key + ": " + conn.getRequestProperty(key));
             }
-        }
 
-        return new HttpURLConnectionResponse(responseCode, responseBody,
-                responseHeaders);
+            // Set Request Body
+            if (this.body != null) {
+                conn.setDoOutput(true);
+                try (OutputStreamWriter output = new OutputStreamWriter(
+                        new BufferedOutputStream(conn.getOutputStream()),
+                        StandardCharsets.UTF_8)) {
+
+                    output.write(this.body);
+                }
+            }
+
+            // Send Request and Get Response Code
+            int responseCode = conn.getResponseCode();
+
+            // Get Response Body
+            InputStream responseStream = null;
+            if (responseCode >= 200 && responseCode <= 299) {
+
+                responseStream = conn.getInputStream();
+            } else {
+
+                responseStream = conn.getErrorStream();
+            }
+            String responseBody = null;
+            if (responseStream != null) {
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(
+                        responseStream, StandardCharsets.UTF_8))) {
+
+                    StringBuilder builder = new StringBuilder();
+                    for (String line = null; (line = in.readLine()) != null;) {
+                        builder.append(line);
+                    }
+                    responseBody = builder.toString();
+                }
+            }
+
+            // Get Response Headers
+            Map<String, List<String>> responseHeaders = conn.getHeaderFields();
+
+            // Trace Log Response
+            System.out.println("<< " + conn.getHeaderField(null));
+            for (String key : conn.getHeaderFields().keySet()) {
+                if (key != null) {
+                    System.out.println(
+                            "  << " + key + ": " + conn.getHeaderField(key));
+                }
+            }
+
+            return new HttpURLConnectionResponse(responseCode, responseBody,
+                    responseHeaders);
+        } finally {
+            conn.disconnect();
+        }
     }
 
     // ----------------------- Helper Methods -----------------------
