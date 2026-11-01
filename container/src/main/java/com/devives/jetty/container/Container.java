@@ -154,7 +154,7 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
                     // This will start a ServerAdapter.
                     Main.statics(classLoader_).main(startArgs_);
                     setupStopPortAndKey(serverAdapter);
-                    serverAdapter.getStopFuture().thenAccept(this::handleServerAdapterClose);
+                    serverAdapter.getStopFuture().whenComplete((ignored, stopError) -> handleServerAdapterClose(stopError));
                 } catch (Exception e) {
                     throw ExceptionUtils.asUnchecked(e);
                 }
@@ -175,7 +175,15 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
         super.removeListener(listener);
     }
 
-    private void handleServerAdapterClose(Void x) {
+    /**
+     * Закрывает ресурсы контейнера после остановки Jetty-сервера.
+     * <p>
+     * Вызывается на любом исходе остановки: при ошибке остановки (в т.ч. самоостановке с ошибкой)
+     * закрывает start-classloader и выполняет {@link #close()}, если контейнер ещё {@code STARTED}.
+     *
+     * @param stopError {@code null} при штатной остановке; причина — при завершении future ошибкой.
+     */
+    private void handleServerAdapterClose(Throwable stopError) {
         final CompletableFuture<Void> stopFuture = stopFuture_;
         try {
             ExceptionUtils.collectAndThrow(
@@ -191,7 +199,12 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
             serverAdapter_ = null;
             if (stopFuture != null) {
                 try {
-                    stopFuture.complete(null);
+                    if (stopError != null) {
+                        // Причина сбоя остановки передаётся ожидающим (stopAsync().get()).
+                        stopFuture.completeExceptionally(stopError);
+                    } else {
+                        stopFuture.complete(null);
+                    }
                 } finally {
                     stopFuture_ = null;
                 }
