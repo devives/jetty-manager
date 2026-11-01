@@ -103,7 +103,7 @@ final class ServerAdapter extends Stateful<State> implements com.devives.jetty.c
     public boolean isStarting() {
         final Server server = serverProxy_;
         return server != null
-                ? serverProxy_.isStarting()
+                ? server.isStarting()
                 : getStateHolder().isExpected(STARTING);
     }
 
@@ -111,7 +111,7 @@ final class ServerAdapter extends Stateful<State> implements com.devives.jetty.c
     public boolean isStarted() {
         final Server server = serverProxy_;
         return server != null
-                ? serverProxy_.isStarted()
+                ? server.isStarted()
                 : getStateHolder().isExpected(STARTED);
     }
 
@@ -119,7 +119,7 @@ final class ServerAdapter extends Stateful<State> implements com.devives.jetty.c
     public boolean isStopping() {
         final Server server = serverProxy_;
         return server != null
-                ? serverProxy_.isStopping()
+                ? server.isStopping()
                 : getStateHolder().isExpected(STOPPING);
     }
 
@@ -127,7 +127,7 @@ final class ServerAdapter extends Stateful<State> implements com.devives.jetty.c
     public boolean isStopped() {
         final Server server = serverProxy_;
         return server != null
-                ? serverProxy_.isStopped()
+                ? server.isStopped()
                 : getStateHolder().isExpected(STOPPED);
     }
 
@@ -135,7 +135,7 @@ final class ServerAdapter extends Stateful<State> implements com.devives.jetty.c
     public boolean isFailed() {
         final Server server = serverProxy_;
         return server != null
-                ? serverProxy_.isFailed()
+                ? server.isFailed()
                 :  getStateHolder().isExpected(FAILED);
     }
 
