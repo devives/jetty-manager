@@ -9,7 +9,6 @@ group = 'com.devives'
 base {
     archivesName = "devive-jetty-container"
 }
-version = '0.1.0'
 
 dependencies {
     implementation 'com.devives:devive-commons-lang:0.9.0'

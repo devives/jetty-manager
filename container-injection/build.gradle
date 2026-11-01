@@ -9,7 +9,6 @@ group = 'com.devives'
 base {
     archivesName = "devive-jetty-container-injection"
 }
-version = '0.1.0'
 
 ext {
     jettyVersion = "9.4.58.v20250814"
