@@ -388,6 +388,14 @@ public class ContainerBuilder {
 
     private void copyResource(String name, Path dest) throws IOException {
         try (InputStream in = getClass().getResourceAsStream(name)) {
+            if (in == null) {
+                throw new IOException(String.format(
+                        "Resource '%s' is not found in the container jar (devive-jetty-container)."
+                        + " Supported Jetty major versions are 9 and 12; for other versions call"
+                        + " ContainerBuilder.disableInjections() and add the injection jar and XML"
+                        + " to the start arguments manually.",
+                        name));
+            }
             Files.copy(in, dest, StandardCopyOption.REPLACE_EXISTING);
         }
     }
