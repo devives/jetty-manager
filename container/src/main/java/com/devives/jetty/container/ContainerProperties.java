@@ -71,6 +71,8 @@ public class ContainerProperties {
 
     /**
      * Метод для установки значения {@link #isExitVmOnStop} из строителя.
+     * <p>
+     * Из {@code ContainerBuilder} намеренно не вызывается — так задумано.
      *
      * @param exitVmOnStop новое значение
      */
@@ -80,6 +82,8 @@ public class ContainerProperties {
 
     /**
      * Флаг указывает на необходимость вызова {@link System#exit(int)} после остановки Jetty-сервера.
+     * <p>
+     * Так задумано: значение не выставлено из публичного API, флаг всегда {@code false}.
      *
      * @return true, если вызывать, иначе false.
      */
