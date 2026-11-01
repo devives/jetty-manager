@@ -304,13 +304,17 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
         return args.toArray(new String[0]);
     }
 
+    /**
+     * Останавливает контейнер и удаляет временные файлы инъекций.
+     * <p>
+     * {@link #stop()} вызывается безусловно: в состояниях, отличных от {@code STARTED}
+     * (уже остановлен, запуск не выполнялся или был прерван ошибкой), он игнорируется
+     * (см. {@code LifeCycleBase#stop()}). Если Jetty-сервер остановился самостоятельно
+     * ({@code handleServerAdapterClose}), контейнер переводится в {@code STOPPED} этим методом.
+     */
     @Override
     public void close() throws Exception {
-        Try.runnable(() -> {
-                    if (!isStarted()) {
-                        stop();
-                    }
-                })
+        Try.runnable(this::stop)
                 .doFinally(() -> closeCallback_.accept(this))
                 .run();
     }
