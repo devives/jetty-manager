@@ -317,18 +317,26 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
      * <p>
      * Для возможности использования этого метода, при запуске Jetty-сервера должен быть указано значение номера
      * порта для сокета остановки.
+     * <p>
+     * Если сервер уже остановлен (или запуск не выполнялся/не удался), команда остановки не отправляется —
+     * порт остановки к этому моменту может быть занят другим процессом; возвращается уже завершённый future.
+     *
      * @return фьючерс завершения остановки.
      * @see ContainerBuilder#setStopPort(int)
      */
     public synchronized Future<Void> stopAsync() {
-        CompletableFuture<Void> stopFuture = stopFuture_;
-        if (stopFuture == null) {
-            stopFuture = new CompletableFuture<>();
-            stopFuture_ = stopFuture;
-            String[] args = buildJettyStopAsyncArgs();
-            // Метод будет ожидать получения уведомления об остановке сервера (по Сокету) в течении stopTimeoutSeconds_ секунд.
-            Main.statics(classLoader_).main(args);
+        final CompletableFuture<Void> existingFuture = stopFuture_;
+        if (existingFuture != null) {
+            return existingFuture;
         }
+        if (serverAdapter_ == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        String[] args = buildJettyStopAsyncArgs();
+        final CompletableFuture<Void> stopFuture = new CompletableFuture<>();
+        stopFuture_ = stopFuture;
+        // Метод будет ожидать получения уведомления об остановке сервера (по Сокету) в течении stopTimeoutSeconds_ секунд.
+        Main.statics(classLoader_).main(args);
         return stopFuture;
     }
 
