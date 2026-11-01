@@ -19,7 +19,9 @@ package com.devives.jetty.container;
 import com.devives.commons.lang.ExceptionUtils;
 import com.devives.commons.lang.call.Try;
 import com.devives.commons.lang.function.FailableConsumer;
+import com.devives.commons.lang.ref.Ref;
 import com.devives.commons.lifecycle.AbstractLifeCycle;
+import com.devives.commons.lifecycle.FailureAction;
 import com.devives.commons.lifecycle.LifeCycle;
 import com.devives.commons.lifecycle.LifeCycleStates;
 import com.devives.jetty.container.contract.*;
@@ -29,6 +31,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Причины запуска Jetty через рефлекшен:
@@ -65,6 +69,11 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
     private final FailableConsumer<Container> closeCallback_;
     private volatile ServerAdapter serverAdapter_;
     private volatile CompletableFuture<Void> stopFuture_;
+    /**
+     * Флаг: получен первый lifecycle-евент Jetty-сервера ({@code handleStarting}),
+     * т.е. сервер сконструирован и классы из start-classloader используются живым сервером.
+     */
+    private volatile boolean serverConstructed_ = false;
     /**
      * Actual stop port after container start.
      */
@@ -146,15 +155,16 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
         synchronized (ENV_VARIABLES_LOCK) {
             final ServerAdapter serverAdapter = new ServerAdapter(version_);
             ContainerContext.Statics context = ContainerContext.statics(classLoader_);
-            // Установка ссылкиcom.devives.jetty.container.injection.ServerEventListenerAdapter.serverEventListener_ на листенер необходима только в момент запуска Jetty.
+            // Установка ссылки на листенер необходима только в момент запуска Jetty.
             // Ссылка на объект будет запомнена в com.devives.jetty.container.injection.ServerEventListenerAdapter.serverEventListener_
             context.setServerEventListener(new ServerEventListenerWrapper(serverAdapter.getServerEventListener()));
+            serverAdapter.getStopFuture().whenComplete((ignored, stopError) -> handleServerAdapterClose(stopError));
             try {
                 try (AutoCloseable ignore = registerShutdownMonitorEnvVariables()) {
                     // This will start a ServerAdapter.
                     Main.statics(classLoader_).main(startArgs_);
+                    validateServerAdapterStarted();
                     setupStopPortAndKey(serverAdapter);
-                    serverAdapter.getStopFuture().whenComplete((ignored, stopError) -> handleServerAdapterClose(stopError));
                 } catch (Exception e) {
                     throw ExceptionUtils.asUnchecked(e);
                 }
@@ -163,6 +173,39 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
             }
             serverAdapter_ = serverAdapter;
         }
+    }
+
+    /**
+     * Реакция на сбой жизненного цикла контейнера.
+     * <p>
+     * Если запуск завершился ошибкой до конструирования Jetty-сервера, событий его жизненного
+     * цикла контейнер уже никогда не получит и штатная очистка ({@code handleServerAdapterClose})
+     * не выполнится никогда — поэтому освобождаем ресурсы сразу: закрываем start-classloader
+     * и удаляем временные файлы инъекций через {@code closeCallback_}. Ошибки очистки не
+     * подменяют собой причину сбоя — добавляются в неё как suppressed.
+     * <p>
+     * Если сервер уже сконструирован (события пошли), ресурсы НЕ освобождаются: живой сервер
+     * может использовать классы из start-classloader, а остановка пойдёт своим путём
+     * (см. {@link #handleServerAdapterClose(Throwable)}).
+     *
+     * @param thRef ссылка на причину сбоя
+     * @return {@link FailureAction#RETHROW} — сбой пробрасывается наружу из {@code start()}/{@code stop()}
+     */
+    @Override
+    protected FailureAction onFailure(Ref<Throwable> thRef) {
+        if (getStateHolder().get() == LifeCycleStates.STARTING && !serverConstructed_) {
+            try {
+                ExceptionUtils.collectAndThrow(
+                        ((java.io.Closeable) classLoader_)::close,
+                        () -> closeCallback_.accept(this));
+            } catch (Exception cleanupError) {
+                Throwable cause = thRef.get();
+                if (cause != null && cleanupError != cause) {
+                    cause.addSuppressed(cleanupError);
+                }
+            }
+        }
+        return FailureAction.RETHROW;
     }
 
     @Override
@@ -185,6 +228,7 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
      */
     private void handleServerAdapterClose(Throwable stopError) {
         final CompletableFuture<Void> stopFuture = stopFuture_;
+        Exception cleanupError = null;
         try {
             ExceptionUtils.collectAndThrow(
                     ((java.io.Closeable) classLoader_)::close,
@@ -195,20 +239,48 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
                         }
                     }
             );
+        } catch (Exception th) {
+            cleanupError = th;
         } finally {
             serverAdapter_ = null;
             if (stopFuture != null) {
                 try {
                     if (stopError != null) {
                         // Причина сбоя остановки передаётся ожидающим (stopAsync().get()).
+                        if (cleanupError != null && cleanupError != stopError) {
+                            stopError.addSuppressed(cleanupError);
+                        }
                         stopFuture.completeExceptionally(stopError);
+                    } else if (cleanupError != null) {
+                        stopFuture.completeExceptionally(cleanupError);
                     } else {
                         stopFuture.complete(null);
                     }
                 } finally {
                     stopFuture_ = null;
                 }
+            } else if (cleanupError != null) {
+                Logger.getLogger(Container.class.getCanonicalName()).log(Level.WARNING,
+                        "Jetty container cleanup error after server stop", cleanupError);
             }
+        }
+    }
+
+    /**
+     * Проверяет, что Jetty-сервер сконструирован: получено первое событие жизненного цикла
+     * ({@code handleStarting}, см. {@code serverConstructed_}).
+     * <p>
+     * Причина несконструированного сервера: {@link ContainerBuilder#disableInjections()} без ручной
+     * разводки инъекционных ресурсов, либо аргументы запуска, при которых {@code Main.main}
+     * возвращается без запуска сервера ({@code --list-modules}, {@code --dry-run} и т.п.).
+     *
+     * @throws ContainerException если сервер не сконструирован
+     */
+    private void validateServerAdapterStarted() {
+        if (!serverConstructed_) {
+            throw new ContainerException("Jetty server was not constructed: no lifecycle events were received."
+                    + " If ContainerBuilder.disableInjections() is used, the injection resources (context jar,"
+                    + " injection jar, container-injection.xml) must be added to the start arguments manually.");
         }
     }
 
@@ -343,6 +415,7 @@ public final class Container extends AbstractLifeCycle implements AutoCloseable 
 
         @Override
         public void handleStarting(Object oServer) {
+            serverConstructed_ = true;
             delegate_.handleStarting(oServer);
             getPublisher().publish(listener -> ((Container.Listener) listener).onServerConstructed(oServer));
         }

@@ -80,7 +80,11 @@ final class ServerAdapter extends Stateful<State> implements com.devives.jetty.c
     }
 
     public void stop() throws Exception {
-        serverProxy_.stop();
+        final Server serverProxy = serverProxy_;
+        if (serverProxy == null) {
+            return;
+        }
+        serverProxy.stop();
     }
 
     public void addListener(LifeCycle.Listener listener) {
