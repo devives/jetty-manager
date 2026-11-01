@@ -267,12 +267,12 @@ public class ContainerBuilder {
         Ref<URLClassLoader> classLoader = Ref.ofNullable();
         Ref<ContainerCloseListener> closeListener = Ref.ofNullable();
         return Try.callable(() -> {
+            closeListener.set(new ContainerCloseListener(injectedFileList_));
             validateJettyHome(jettyHome_);
             int version = resolveJettyVersion();
             if (injectionsEnabled_) {
                 injectContainerResources(version);
             }
-            closeListener.set(new ContainerCloseListener(new ArrayList<>(this.injectedFileList_)));
             classLoader.set(buildJettyClassLoader(jettyHome_));
             String[] args = buildStartArgs();
             ContainerProperties properties = new ContainerProperties();
@@ -294,7 +294,10 @@ public class ContainerBuilder {
     /**
      * Обработчик события закрытия контейнера.
      * <p>
-     * Выполняет удаление файловых ресурсов.
+     * Выполняет удаление файловых ресурсов: сначала файлы, затем каталоги —
+     * непустой каталог средствами {@link File#delete()} не удаляется, поэтому порядок
+     * регистрации в отслеживаемом списке значения не имеет. Список используется «живым»:
+     * ресурсы, добавленные после создания слушателя, также попадают в очистку.
      * <p>
      * Объявлен статическим классом, во избежание появления неявных ссылок на экземпляр строителя.
      */
@@ -308,7 +311,8 @@ public class ContainerBuilder {
 
         @Override
         public void accept(Container container) throws Exception {
-            resourceFileList_.forEach(File::delete);
+            resourceFileList_.stream().filter(File::isFile).forEach(File::delete);
+            resourceFileList_.stream().filter(File::isDirectory).forEach(File::delete);
         }
     }
 
@@ -363,6 +367,7 @@ public class ContainerBuilder {
     private void injectContainerResources(int jettyVersion) throws IOException {
         Path tempDir = containerTempDir_ != null ? containerTempDir_ : Paths.get(System.getProperty("java.io.tmpdir"));
         Path tempPath = Files.createTempDirectory(tempDir, "jetty-container-");
+        injectedFileList_.add(tempPath.toFile());
         Logger.getLogger(getClass().getCanonicalName()).info(String.format("Jetty container temp directory: %s", tempPath.toAbsolutePath()));
 
         String jarName = "devive-jetty-container-context.jar";
@@ -381,9 +386,6 @@ public class ContainerBuilder {
         copyResource("etc/jetty" + jettyVersion + "/container-injection.xml", dest);
         injectedFileList_.add(dest.toFile());
         addStartArgument(dest.toString());
-
-        // Каталог добавляется последним, что бы быть удаленным последним.
-        injectedFileList_.add(tempPath.toFile());
     }
 
     private void copyResource(String name, Path dest) throws IOException {
