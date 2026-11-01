@@ -8,6 +8,10 @@ Jetty Manager publishes one Java 8 library, `com.devives:devive-jetty-container`
 
 Shared utilities (`ExceptionUtils`, `Try`, `ProxyBuilder`, `AbstractLifeCycle`, `ClassLoaderUtils`) come from the external `com.devives:devive-commons-lang` library (resolved from `mavenLocal()` first). Javadoc and comments are written in Russian; match that style when editing existing files.
 
+## Restrictions
+
+**Do not add narrative comments** — no fix-rationale comments, no comments narrating what a line or block does, no comments explaining why a change was made. Let code and names speak. Javadoc on public API documents the contract only (parameters, outcomes, invariants), not the history or motivation of an edit. The user deletes such comments after the fact; never add them, including in fixes produced from code review.
+
 ## Commands
 
 Gradle 8.10 wrapper (`./gradlew` / `gradlew.bat`). Toolchains are pinned to BellSoft Liberica JDKs: 8 for all published modules, 21 for the Jetty 12 test module (Gradle auto-provisions if not installed).
