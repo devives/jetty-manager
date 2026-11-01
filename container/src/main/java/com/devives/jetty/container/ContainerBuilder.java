@@ -342,7 +342,8 @@ public class ContainerBuilder {
         if (trimmedName.isEmpty()) {
             throw new IllegalArgumentException("The argument name cannot consist only of whitespaces.");
         }
-        return trimmedName.toLowerCase();
+        // Регистр сохраняется: имена аргументов Jetty (свойства, модули, пути к XML) чувствительны к регистру.
+        return trimmedName;
     }
 
     private void validateJettyHome(Path jettyHome) {
