@@ -4,6 +4,9 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 distribution/
+.claude/
+.qwen/
+.codex/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
