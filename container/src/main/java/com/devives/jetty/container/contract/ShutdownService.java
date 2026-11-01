@@ -50,9 +50,9 @@ public interface ShutdownService {
      * <p>
      * Значение устанавливается через параметр окружения {@code System.getProperty("STOP.HOST", "127.0.0.1")}.
      *
-     * @return номер порта.
+     * @return имя хоста.
      */
-    int getHost();
+    String getHost();
 
     /**
      * Возвращает указанный при запуске номер порта.
