@@ -16,7 +16,6 @@ ext {
 
 dependencies {
     compileOnly "org.eclipse.jetty:jetty-util:$jettyVersion"
-    implementation(project(":container"))
     implementation(project(":container-context"))
 }
 
