@@ -52,6 +52,7 @@ public class ContainerBuilder {
     private int httpsPort_ = 8443;
     private Integer stopPort_;
     private String stopKey_;
+    private Boolean exitVmOnStop_;
     private long stopTimeoutSeconds_ = 15L;
     private boolean injectionsEnabled_ = true;
     private Version jettyVersion_ = Version.Auto;
@@ -186,6 +187,19 @@ public class ContainerBuilder {
     }
 
     /**
+     * Устанавливает необходимость вызова {@link System#exit(int)} после остановки Jetty-сервера.
+     * <p>
+     * По умолчанию: false.
+     *
+     * @param exitVmOnStop true, если завершать JVM после остановки сервера, иначе false.
+     * @return текущий строитель.
+     */
+    public ContainerBuilder setExitVmOnStop(boolean exitVmOnStop) {
+        exitVmOnStop_ = exitVmOnStop;
+        return this;
+    }
+
+    /**
      * Устанавливает таймаут ожидания остановки Jetty-сервера после отправки команды остановки а сокет.
      *
      * @param timeoutSeconds таймаут, в миллисекундах.
@@ -280,6 +294,7 @@ public class ContainerBuilder {
             Optional.ofNullable(httpsPort_).ifPresent(properties::setHttpsPort);
             Optional.ofNullable(stopPort_).ifPresent(properties::setStopPort);
             Optional.ofNullable(stopKey_).ifPresent(properties::setStopKey);
+            Optional.ofNullable(exitVmOnStop_).ifPresent(properties::setExitVmOnStop);
             Optional.ofNullable(stopTimeoutSeconds_).ifPresent(properties::setStopTimeout);
             return new Container(version, classLoader.get(), properties, args, closeListener.get());
         }).onCatch((th) -> {
